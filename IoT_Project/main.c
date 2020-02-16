@@ -123,11 +123,12 @@ int main(void)
         }
         else if(userInput.endOfString && isCommand(&userInput, "set", 3))
         {
-            char    *token, *address;
+            char    token[MAX_CHARS + 1];
+            char    address[MAX_CHARS + 1];
 
-            token = getFieldString(&userInput, 1);   // Retrieve network configuration parameter
+            strcpy(token,getFieldString(&userInput, 1));   // Retrieve network configuration parameter
 
-            address = getFieldString(&userInput, 2); // Retrieve network parameter address
+            strcpy(address,getFieldString(&userInput, 2)); // Retrieve network parameter address
 
             if(strcmp(token, "ip") == 0)             // Set Internet Protocol address
             {

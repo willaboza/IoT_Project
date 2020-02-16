@@ -141,7 +141,7 @@ bool isCommand(USER_DATA* data, const char strCommand[], uint8_t minArguments)
 
     copy[index] = '\0';
 
-    if((strcmp(strCommand, copy) == 0) && (minArguments >= data->fieldCount))
+    if((strcmp(strCommand, copy) == 0) && (data->fieldCount >= minArguments))
     {
         command = true;
     }
