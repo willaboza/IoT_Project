@@ -16,7 +16,7 @@ void getsUart0(USER_DATA* data)
     count = data->characterCount;
 
     c = getcUart0();
-    if(c == 13) || (count == MAX_CHARS)
+    if((c == 13) || (count == MAX_CHARS))
     {
         data->buffer[count++] = '\0';
         data->characterCount = 0;
