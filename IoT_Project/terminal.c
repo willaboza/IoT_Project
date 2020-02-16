@@ -149,6 +149,7 @@ bool isCommand(USER_DATA* data, const char strCommand[], uint8_t minArguments)
     return command;
 }
 
+// Function to reset User Input for next command
 void resetUserInput(USER_DATA* data)
 {
     data->characterCount = 0;
@@ -161,7 +162,7 @@ void resetUserInput(USER_DATA* data)
 void printMainMenu()
 {
     putsUart0("Commands:\r\n");
-    putsUart0("  dhcp ON|OFF|REFRESH\RELEASE\r\n");
+    putsUart0("  dhcp ON|OFF|REFRESH|RELEASE\r\n");
     putsUart0("  set IP|GW|DNS|SN w.x.y.z\r\n");
     putsUart0("  ifconfig\r\n");
     putsUart0("  reboot\r\n");
