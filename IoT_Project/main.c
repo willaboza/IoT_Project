@@ -83,9 +83,7 @@ int main(void)
     setPinValue(GREEN_LED, 0);
     waitMicrosecond(100000);
 
-    userInput.characterCount = 0;
-    userInput.fieldCount = 0;
-    userInput.delimeter = false;
+    resetUserInput(&userInput);
 
     // Display Main Menu
     printMainMenu();
@@ -94,12 +92,11 @@ int main(void)
     {
         // Get User Input
         getsUart0(&userInput);
-        putsUart0("\r\n");
 
         // Tokenize User Input
         parseFields(&userInput);
 
-        if(isCommand(&userInput, "dhcp", 2))
+        if(userInput.endOfString && isCommand(&userInput, "dhcp", 2))
         {
             char *token;
 
@@ -107,26 +104,24 @@ int main(void)
 
             if(strcmp(token, "on") == 0)           // Enables DHCP mode and stores the mode persistently in EEPROM
             {
-
+                putsUart0("dhcp ON Function.\r\n");
             }
             else if(strcmp(token, "off") == 0)     // Disables DHCP mode and stores the mode persistently in EEPROM
             {
-
+                putsUart0("dhcp OFF Function.\r\n");
             }
             else if(strcmp(token, "refresh") == 0) // Refresh Current IP address (if in DHCP mode)
             {
-
+                putsUart0("dhcp REFRESH Function.\r\n");
             }
             else if(strcmp(token, "release") == 0) // Release Current IP address (if in DHCP mode)
             {
+                putsUart0("dhcp RELEASE Function.\r\n");
+            }
 
-            }
-            else
-            {
-                putsUart0("Command Not Recognized.\r\n");
-            }
+            resetUserInput(&userInput);
         }
-        else if(isCommand(&userInput, "set", 3))
+        else if(userInput.endOfString && isCommand(&userInput, "set", 3))
         {
             char    *token, *address;
 
@@ -136,36 +131,38 @@ int main(void)
 
             if(strcmp(token, "ip") == 0)             // Set Internet Protocol address
             {
-
+                putsUart0("set IP Function.\r\n");
             }
             else if(strcmp(token, "gw") == 0)        // Set Gateway address
             {
-
+                putsUart0("set GW Function.\r\n");
             }
             else if(strcmp(token, "dns") == 0)       // Set Domain Name System address
             {
-
+                putsUart0("set DNS Function.\r\n");
             }
             else if(strcmp(token, "sn") == 0)        // Set Sub-net Mask
             {
-
+                putsUart0("set SN Function.\r\n");
             }
-            else
-            {
-                putsUart0("Command Not Recognized.\r\n");
-            }
-        }
-        else if(isCommand(&userInput, "ifconfig", 1))
-        {
 
+            resetUserInput(&userInput);
         }
-        else if(isCommand(&userInput, "reboot", 1))
+        else if(userInput.endOfString && isCommand(&userInput, "ifconfig", 1))
         {
+            userInput.fieldCount = 0;
+            putsUart0("ifconfig Function.\r\n");
+
+            resetUserInput(&userInput);
+        }
+        else if(userInput.endOfString && isCommand(&userInput, "reboot", 1))
+        {
+            putsUart0("Rebooting System...\r\n");
             rebootFlag = true;
         }
-        else
+        else if(userInput.endOfString)
         {
-            putsUart0("Command Not Recognized.\r\n");
+            resetUserInput(&userInput);
         }
     }
 

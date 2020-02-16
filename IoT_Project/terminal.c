@@ -19,7 +19,7 @@ void getsUart0(USER_DATA* data)
     if((c == 13) || (count == MAX_CHARS))
     {
         data->buffer[count++] = '\0';
-        data->characterCount = 0;
+        data->endOfString = true;
         putsUart0("\r\n");
     }
     else
@@ -33,13 +33,11 @@ void getsUart0(USER_DATA* data)
         {
             if('A' <= c && c <= 'Z')
             {
-                data->buffer[count++] = c + 32;  // Converts capital letter to lower case
-                data->characterCount = count;
+                data->buffer[count] = c + 32;  // Converts capital letter to lower case
             }
             else
             {
-                data->buffer[count++] = c;
-                data->characterCount = count;
+                data->buffer[count] = c;
             }
         }
     }
@@ -64,22 +62,22 @@ void parseFields(USER_DATA* data)
             if(data->delimeter == true)
             {
                 data->fieldPosition[fieldIndex] = count;
-                data->characterCount = ++count;
                 data->fieldType[fieldIndex] = 'A';
                 data->fieldCount = ++fieldIndex;
                 data->delimeter = false;
             }
+            data->characterCount = ++count;
         }
         else if(('0' <= c && c <= '9') || ',' == c ||  c == '.') //Code executes for numerics same as alpha
         {
             if(data->delimeter == true)
             {
                 data->fieldPosition[fieldIndex] = count;
-                data->characterCount = ++count;
                 data->fieldType[fieldIndex] = 'N';
                 data->fieldCount = ++fieldIndex;
                 data->delimeter = false;
             }
+            data->characterCount = ++count;
         }
         else // Insert NULL('\0') into character array if NON-alphanumeric character detected
         {
@@ -149,6 +147,14 @@ bool isCommand(USER_DATA* data, const char strCommand[], uint8_t minArguments)
     }
 
     return command;
+}
+
+void resetUserInput(USER_DATA* data)
+{
+    data->characterCount = 0;
+    data->fieldCount = 0;
+    data->delimeter = true;
+    data->endOfString = false;
 }
 
 // Function to Print Main Menu

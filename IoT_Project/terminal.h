@@ -24,12 +24,13 @@
 
 typedef struct _USER_DATA
 {
-    bool delimeter;
+    bool    delimeter;
+    bool    endOfString;
     uint8_t fieldCount;
-    uint8_t fieldPosition[MAX_FIELDS];
     uint8_t characterCount;
-    char fieldType[MAX_FIELDS];
-    char buffer[MAX_CHARS + 1];
+    uint8_t fieldPosition[MAX_FIELDS];
+    char    fieldType[MAX_FIELDS];
+    char    buffer[MAX_CHARS + 1];
 } USER_DATA;
 
 //-----------------------------------------------------------------------------
@@ -38,10 +39,11 @@ typedef struct _USER_DATA
 
 void getsUart0(USER_DATA* data);
 void parseFields(USER_DATA* data);
+void resetUserInput(USER_DATA* data);
+void printMainMenu();
 char* getFieldString(USER_DATA* data, uint8_t fieldNumber);
 int32_t getFieldInteger(USER_DATA* data, uint8_t fieldNumber);
 uint8_t getStringLength(USER_DATA** data, uint8_t offset);
 bool isCommand(USER_DATA* data, const char strCommand[], uint8_t minArguments);
-void printMainMenu();
 
 #endif /* TERMINAL_H_ */
