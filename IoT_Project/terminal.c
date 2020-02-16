@@ -64,6 +64,7 @@ void parseFields(USER_DATA* data)
             if(data->delimeter == true)
             {
                 data->fieldPosition[fieldIndex] = count;
+                data->characterCount = ++count;
                 data->fieldType[fieldIndex] = 'A';
                 data->fieldCount = ++fieldIndex;
                 data->delimeter = false;
@@ -74,6 +75,7 @@ void parseFields(USER_DATA* data)
             if(data->delimeter == true)
             {
                 data->fieldPosition[fieldIndex] = count;
+                data->characterCount = ++count;
                 data->fieldType[fieldIndex] = 'N';
                 data->fieldCount = ++fieldIndex;
                 data->delimeter = false;
@@ -82,6 +84,7 @@ void parseFields(USER_DATA* data)
         else // Insert NULL('\0') into character array if NON-alphanumeric character detected
         {
             data->buffer[count] = '\0';
+            data->characterCount = ++count;
             data->delimeter = true;
         }
     }
