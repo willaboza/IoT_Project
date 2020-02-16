@@ -10,75 +10,79 @@
 // Function to get Input from Terminal
 void getsUart0(USER_DATA* data)
 {
-    bool    end = false;
-    uint8_t count = 0;
+    uint8_t count;
     char    c;
 
-    while(!end)
+    count = data->characterCount;
+
+    c = getcUart0();
+    if(c == 13) || (count == MAX_CHARS)
     {
-        c = getcUart0();
-        end = (c == 13) || (count == MAX_CHARS);
-        if (!end)
+        data->buffer[count++] = '\0';
+        data->characterCount = 0;
+    }
+    else
+    {
+        if ((c == 8 || c == 127) && count > 0) // Decrement count if invalid character entered
         {
-            if ((c == 8 || c == 127) && count > 0) // Decrement count if invalid character entered
+            count--;
+            data->characterCount = count;
+        }
+        if (c >= ' ' && c < 127)
+        {
+            if('A' <= c && c <= 'Z')
             {
-                count--;
+                data->buffer[count++] = c + 32;  // Converts capital letter to lower case
+                data->characterCount = count;
             }
-            if (c >= ' ' && c < 127)
+            else
             {
-                if('A' <= c && c <= 'Z')
-                {
-                    data->buffer[count++] = c + 32;  // Converts capital letter to lower case
-                }
-                else
-                {
-                    data->buffer[count++] = c;
-                }
+                data->buffer[count++] = c;
+                data->characterCount = count;
             }
         }
     }
-    data->buffer[count] = '\0';
 }
 
 // Function to Tokenize Strings
 void parseFields(USER_DATA* data)
 {
     char    c;
-    uint8_t count = 0, fieldIndex = 0;
-    bool    delimeter = true;
+    uint8_t count, fieldIndex;
+
+    count = data->characterCount;
 
     c = data->buffer[count];
 
-    while(c != '\0' && count <= MAX_CHARS)
+    fieldIndex = data->fieldCount;
+
+    if(c != '\0' && count <= MAX_CHARS)
     {
         if('a' <= c && c <= 'z') // Verify is character is an alpha (case sensitive)
         {
-            if(delimeter == true)
+            if(data->delimeter == true)
             {
                 data->fieldPosition[fieldIndex] = count;
                 data->fieldType[fieldIndex] = 'A';
-                data->fieldCount = fieldIndex;
-                fieldIndex++;
-                delimeter = false;
+                data->fieldCount = ++fieldIndex;
+                data->delimeter = false;
             }
         }
         else if(('0' <= c && c <= '9') || ',' == c ||  c == '.') //Code executes for numerics same as alpha
         {
-            if(delimeter == true)
+            if(data->delimeter == true)
             {
                 data->fieldPosition[fieldIndex] = count;
                 data->fieldType[fieldIndex] = 'N';
-                data->fieldCount = fieldIndex;
-                fieldIndex++;
-                delimeter = false;
+                data->fieldCount = ++fieldIndex;
+                data->delimeter = false;
             }
         }
         else // Insert NULL('\0') into character array if NON-alphanumeric character detected
         {
             data->buffer[count] = '\0';
-            delimeter = true;
+            data->delimeter = true;
         }
-        c = data->buffer[++count];
     }
 }
 

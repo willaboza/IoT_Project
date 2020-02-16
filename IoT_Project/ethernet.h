@@ -129,15 +129,15 @@
 //  Globals
 // ------------------------------------------------------------------------------
 
-uint8_t  nextPacketLsb = 0x00;
-uint8_t  nextPacketMsb = 0x00;
-uint8_t  sequenceId = 1;
-uint32_t sum;
-uint8_t  macAddress[HW_ADD_LENGTH] =   {2,3,4,5,6,7};
-uint8_t  ipAddress[IP_ADD_LENGTH] =    {0,0,0,0};
-uint8_t  ipSubnetMask[IP_ADD_LENGTH] = {255,255,255,0};
-uint8_t  ipGwAddress[IP_ADD_LENGTH] =  {0,0,0,0};
-bool     dhcpEnabled = true;
+extern uint8_t  nextPacketLsb;
+extern uint8_t  nextPacketMsb;
+extern uint8_t  sequenceId;
+extern uint32_t sum;
+extern uint8_t  macAddress[HW_ADD_LENGTH];
+extern uint8_t  ipAddress[IP_ADD_LENGTH];
+extern uint8_t  ipSubnetMask[IP_ADD_LENGTH];
+extern uint8_t  ipGwAddress[IP_ADD_LENGTH];
+extern bool     dhcpEnabled;
 
 // ------------------------------------------------------------------------------
 //  Structures

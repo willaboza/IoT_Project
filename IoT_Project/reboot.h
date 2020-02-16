@@ -26,7 +26,7 @@
 
 #define TIMEOUT_MS 2000 // Watchdog timeout
 
-extern bool rebootFlag = false;
+extern bool rebootFlag;
 
 void initWatchdog();
 void resetWatchdog();

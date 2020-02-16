@@ -19,6 +19,8 @@
 
 #include "reboot.h"
 
+bool rebootFlag = false;
+
 // Initialize WATCHDOG
 void initWatchdog()
 {
@@ -47,7 +49,7 @@ void watchdogIsr()
 {
     //This is the last chance to avoid a reset
     // Write to ICR to avoid a reset
-    if(rebootFlag == true)
+    if(rebootFlag == false)
     {
         resetWatchdog();
     }

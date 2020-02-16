@@ -11,6 +11,16 @@
 // Receive buffer starts at 0x0000 (bottom 6666 bytes of 8K space)
 // Transmit buffer at 01A0A (top 1526 bytes of 8K space)
 
+uint8_t  nextPacketLsb = 0x00;
+uint8_t  nextPacketMsb = 0x00;
+uint8_t  sequenceId = 1;
+uint32_t sum = 0;
+uint8_t  macAddress[HW_ADD_LENGTH] =   {2,3,4,5,6,7};
+uint8_t  ipAddress[IP_ADD_LENGTH] =    {0,0,0,0};
+uint8_t  ipSubnetMask[IP_ADD_LENGTH] = {255,255,255,0};
+uint8_t  ipGwAddress[IP_ADD_LENGTH] =  {0,0,0,0};
+bool     dhcpEnabled = true;
+
 void etherCsOn()
 {
     setPinValue(CS, 0);

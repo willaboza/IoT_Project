@@ -24,10 +24,12 @@
 
 typedef struct _USER_DATA
 {
-    char buffer[MAX_CHARS + 1];
+    bool delimeter;
     uint8_t fieldCount;
     uint8_t fieldPosition[MAX_FIELDS];
+    uint8_t characterCount;
     char fieldType[MAX_FIELDS];
+    char buffer[MAX_CHARS + 1];
 } USER_DATA;
 
 //-----------------------------------------------------------------------------

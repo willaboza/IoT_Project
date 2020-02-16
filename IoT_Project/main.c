@@ -63,7 +63,7 @@ int main(void)
 
     // Setup UART0 Baud Rate
     setUart0BaudRate(115200, 40e6);
-
+/*
     // Init Ethernet Interface
     putsUart0("\nStarting eth0\n");
     etherInit(ETHER_UNICAST | ETHER_BROADCAST | ETHER_HALFDUPLEX);
@@ -74,12 +74,18 @@ int main(void)
     etherSetIpGatewayAddress(192, 168, 1, 1);
     waitMicrosecond(100000);
     displayConnectionInfo();
+    putsUart0("\r\n");
+*/
 
     // Flash LED
     setPinValue(GREEN_LED, 1);
     waitMicrosecond(100000);
     setPinValue(GREEN_LED, 0);
     waitMicrosecond(100000);
+
+    userInput.characterCount = 0;
+    userInput.fieldCount = 0;
+    userInput.delimeter = false;
 
     // Display Main Menu
     printMainMenu();
@@ -123,7 +129,6 @@ int main(void)
         else if(isCommand(&userInput, "set", 3))
         {
             char    *token, *address;
-            int32_t address;
 
             token = getFieldString(&userInput, 1);   // Retrieve network configuration parameter
 
