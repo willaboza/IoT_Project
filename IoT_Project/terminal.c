@@ -20,6 +20,7 @@ void getsUart0(USER_DATA* data)
     {
         data->buffer[count++] = '\0';
         data->characterCount = 0;
+        putsUart0("\r\n");
     }
     else
     {
