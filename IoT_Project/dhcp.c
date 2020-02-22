@@ -7,10 +7,31 @@
 
 #include "dhcp.h"
 
+// See if DHCP mode is ON or OFF
+bool usingDhcp()
+{
+
+}
+
+// Send Broadcast to see who is on the network
+void broadcastDhcp()
+{
+
+}
+
+void receiveOffer()
+{
+
+}
+
 // Function to send DHCP message
 void sendDhcpMessage(uint8_t packet[], uint8_t type, uint8_t ipAdd[])
 {
     uint32_t sum;
+}
+
+bool getAck(){
+
 }
 
 // IP header Encapsulation

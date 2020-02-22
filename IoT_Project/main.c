@@ -63,19 +63,11 @@ int main(void)
 
     // Setup UART0 Baud Rate
     setUart0BaudRate(115200, 40e6);
-/*
+
     // Init Ethernet Interface
-    putsUart0("\nStarting eth0\n");
-    etherInit(ETHER_UNICAST | ETHER_BROADCAST | ETHER_HALFDUPLEX);
-    etherSetMacAddress(2, 3, 4, 5, 6, 7);
-    etherDisableDhcpMode();
-    etherSetIpAddress(192, 168, 1, 199);
-    etherSetIpSubnetMask(255, 255, 255, 0);
-    etherSetIpGatewayAddress(192, 168, 1, 1);
-    waitMicrosecond(100000);
-    displayConnectionInfo();
+    putsUart0("\r\nStarting eth0\r\n");
+    initEthernetInterface();
     putsUart0("\r\n");
-*/
 
     // Flash LED
     setPinValue(GREEN_LED, 1);
@@ -83,6 +75,7 @@ int main(void)
     setPinValue(GREEN_LED, 0);
     waitMicrosecond(100000);
 
+    // Set Variables for User Input to Initial Condition
     resetUserInput(&userInput);
 
     // Display Main Menu
@@ -90,11 +83,64 @@ int main(void)
 
     while(true)
     {
-        // Get User Input
-        getsUart0(&userInput);
+        // If User Input detected, then process input
+        if(kbhitUart0())
+        {
+            // Get User Input
+            getsUart0(&userInput);
 
-        // Tokenize User Input
-        parseFields(&userInput);
+            // Tokenize User Input
+            parseFields(&userInput);
+        }
+
+        // Packet processing
+        if (etherIsDataAvailable())
+        {
+            if (etherIsOverflow())
+            {
+                setPinValue(RED_LED, 1);
+                waitMicrosecond(100000);
+                setPinValue(RED_LED, 0);
+            }
+
+            // Get packet
+             etherGetPacket(data, MAX_PACKET_SIZE);
+
+             // Handle ARP request
+             if (etherIsArpRequest(data))
+             {
+                 etherSendArpResponse(data);
+             }
+
+             // Handle IP datagram
+             if (etherIsIp(data))
+             {
+                 if (etherIsIpUnicast(data))
+                 {
+                     // Handle ICMP ping request
+                     if (etherIsPingRequest(data))
+                     {
+                       etherSendPingResponse(data);
+                     }
+
+                     // Process UDP Datagram
+                     // Test this with a udp send utility like sendip
+                     // If sender IP (-is) is 192.168.1.198, this will attempt to
+                     // Send the udp datagram (-d) to 192.168.1.199, port 1024 (-ud)
+                     // sudo sendip -p ipv4 -is 192.168.1.198 -p udp -ud 1024 -d "on" 192.168.1.199
+                     // sudo sendip -p ipv4 -is 192.168.1.198 -p udp -ud 1024 -d "off" 192.168.1.199
+                     if (etherIsUdp(data))
+                     {
+                         udpData = etherGetUdpData(data);
+                         if (strcmp((char*)udpData, "on") == 0)
+                             setPinValue(GREEN_LED, 1);
+                         if (strcmp((char*)udpData, "off") == 0)
+                             setPinValue(GREEN_LED, 0);
+                         etherSendUdpResponse(data, (uint8_t*)"Received", 9);
+                     }
+                 }
+             }
+        }
 
         if(userInput.endOfString && isCommand(&userInput, "dhcp", 2))
         {

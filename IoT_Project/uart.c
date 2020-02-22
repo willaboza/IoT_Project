@@ -41,7 +41,9 @@ void initUart0()
     // Enable clocks
     SYSCTL_RCGCUART_R |= SYSCTL_RCGCUART_R0;
     _delay_cycles(3);
+
     enablePort(PORTA);
+    _delay_cycles(3);
 
     // Configure UART0 pins
     selectPinPushPullOutput(UART_TX);
@@ -85,6 +87,11 @@ void putsUart0(char* str)
 // Blocking function that returns with serial data once the buffer is not empty
 char getcUart0()
 {
-    while (UART0_FR_R & UART_FR_RXFE);               // wait if uart0 rx fifo empty
     return UART0_DR_R & 0xFF;                        // get character from fifo
+}
+
+// Returns the status of the receive buffer
+bool kbhitUart0()
+{
+    return !(UART0_FR_R & UART_FR_RXFE);
 }

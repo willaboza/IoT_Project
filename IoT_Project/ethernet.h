@@ -18,6 +18,7 @@
 #include "tm4c123gh6pm.h"
 #include "wait.h"
 #include "gpio.h"
+#include "uart.h"
 #include "spi.h"
 
 // Max packet is calculated as:
@@ -246,6 +247,8 @@ void etherSetIpSubnetMask(uint8_t mask0, uint8_t mask1, uint8_t mask2, uint8_t m
 void etherGetIpSubnetMask(uint8_t mask[4]);
 void etherSetMacAddress(uint8_t mac0, uint8_t mac1, uint8_t mac2, uint8_t mac3, uint8_t mac4, uint8_t mac5);
 void etherGetMacAddress(uint8_t mac[6]);
+
+void initEthernetInterface();
 
 uint16_t htons(uint16_t value);
 #define ntohs htons

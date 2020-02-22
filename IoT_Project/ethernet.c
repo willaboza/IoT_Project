@@ -824,3 +824,16 @@ void displayConnectionInfo()
     else
         putsUart0("Link is down\n");
 }
+
+// Init Ethernet Interface
+void initEthernetInterface()
+{
+    etherSetMacAddress(2, 3, 4, 5, 6, 106);
+    etherInit(ETHER_UNICAST | ETHER_BROADCAST | ETHER_HALFDUPLEX);
+    etherDisableDhcpMode();
+    etherSetIpAddress(192, 168, 1, 106);
+    etherSetIpSubnetMask(255, 255, 255, 0);
+    etherSetIpGatewayAddress(192, 168, 1, 1);
+    waitMicrosecond(100000);
+    displayConnectionInfo();
+}
