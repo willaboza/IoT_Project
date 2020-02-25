@@ -11,8 +11,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include "tm4c123gh6pm.h"
 #include "eeprom.h"
+#include "ethernet.h"
 
 // uint8_t dhcpServerIpAdd[4];
 
@@ -35,6 +37,8 @@ typedef struct _dhcpFrame
   uint8_t   options[0];
 } dhcpFrame;
 
-void sendDhcpMessage(uint8_t packet[], uint8_t type, uint8_t ipAdd[]);
+void sendDhcpDiscoverMessage(uint8_t packet[], uint8_t type, uint8_t ipAdd[]);
+void getDhcpOfferMessage(uint8_t packet[]);
+bool usingDhcp();
 
 #endif /* DHCP_H_ */

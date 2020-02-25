@@ -6,65 +6,122 @@
  */
 
 #include "timers.h"
-#include "uart.h"
+
+bool renewRequest = false;
+bool rebindRequest = true;
+bool releaseRequest = false;
 
 //
 void initWideTimers()
 {
+    uint8_t i = 0;
+
     // Enable clocks
-    enablePort(PORTD);
+    SYSCTL_RCGCTIMER_R |= SYSCTL_RCGCTIMER_R4;
     _delay_cycles(3);
 
-    GPIO_PORTD_AFSEL_R |= 0x30;                                                  // select alternative functions for FREQ_IN pin
-    GPIO_PORTD_PCTL_R  &= ~(GPIO_PCTL_PD4_M  | GPIO_PCTL_PD5_M);                 // map alt fns to FREQ_IN
-    GPIO_PORTD_PCTL_R  |= (GPIO_PCTL_PD4_WT4CCP0 | GPIO_PCTL_PD5_WT4CCP1);
-    GPIO_PORTD_DEN_R   |= 0x30;                                                  // enable bit 6 for digital input
+    TIMER4_CTL_R   &= ~TIMER_CTL_TAEN;                        // turn-off counter before reconfiguring
+    TIMER4_CFG_R   = TIMER_CFG_32_BIT_TIMER;                                                          // configure as 32-bit counter
+    TIMER4_TAMR_R  = TIMER_TAMR_TAMR_PERIOD;                // configure for one-shot mode, count down
+    TIMER4_TAILR_R = 40000000;
+    TIMER4_CTL_R   |= TIMER_CTL_TAEN;
+    TIMER4_IMR_R   |= TIMER_IMR_TATOIM;                       // enable interrupts
+    NVIC_EN2_R     |= (1 << (INT_TIMER4A-80));             // turn-on interrupt 86 (TIMER4A)
 
-    WTIMER4_CTL_R  &= ~(TIMER_CTL_TAEN | TIMER_CTL_TBEN);                        // turn-off counter before reconfiguring
-    WTIMER4_CFG_R  = 4;                                                          // configure as 32-bit counter
-    WTIMER4_TAMR_R = (TIMER_TAMR_TAMR_1_SHOT | TIMER_TAMR_TAMIE);                // configure for one-shot mode, count down
-    WTIMER4_TBMR_R = (TIMER_TBMR_TBMR_1_SHOT | TIMER_TBMR_TBMIE);
-    WTIMER4_CTL_R  |= (TIMER_CTL_TAEVENT_POS | TIMER_CTL_TBEVENT_POS);           // configure for positive edge
-    WTIMER4_IMR_R  = (TIMER_IMR_TATOIM | TIMER_IMR_TBTOIM);                      // turn-on interrupts                                                         // zero counter for first period                       // turn-on counter
-    NVIC_EN3_R     |= (1 << (INT_WTIMER4A-16-96) | (1 << (INT_WTIMER4B-16-96))); // turn-on interrupt 117 (WTIMER4A) and 118 (WTIMER4B)
+    for(i = 0; i < NUM_TIMERS; i++)
+    {
+        period[i] = 0;
+        ticks[i]  = 0;
+        fn[i]     = 0;
+        reload[i] = false;
+    }
 }
 
 //
-void WideTimer4aIsr()
+bool startOneShotTimer(_callback callback, uint32_t seconds)
 {
-    putsUart0("Renewal timer, T1, expired.\r\n");
-    WTIMER4_ICR_R |= TIMER_ICR_TATOCINT; // Clear Time-Out Interrupt Flag of Timer A
+    uint8_t i = 0;
+    bool found = false;
+    while(i < NUM_TIMERS && !found)
+    {
+        found     = fn[i] == NULL;
+        period[i] = seconds;
+        ticks[i]  = seconds;
+        fn[i]     = callback;
+        reload[i] = false;
+        i++;
+    }
+    return found;
 }
 
 //
-void WideTimer4bIsr()
+bool startPeriodicTimer(_callback callback, uint32_t seconds)
 {
-    putsUart0("Rebinding timer, T2, expired.\r\n");
-    WTIMER4_ICR_R |= TIMER_ICR_TBTOCINT; // Clear Time-Out Interrupt Flag of Timer B
+    uint8_t i = 0;
+    bool found = false;
+    while(i < NUM_TIMERS && !found)
+    {
+        found     = fn[i] == NULL;
+        period[i] = seconds;
+        ticks[i]  = seconds;
+        fn[i]     = callback;
+        reload[i] = false;
+        i++;
+    }
+    return found;
 }
 
-// Function to Load Value for Timer 4A
-void setTimer4aValue(uint32_t valueTimer4a)
+//
+bool stopTimer(_callback callback)
 {
-    WTIMER4_TAILR_R = valueTimer4a;   // Load value into Timer A
-    WTIMER4_CTL_R  |= TIMER_CTL_TAEN; // Enable interrupts for Timer A
+    uint8_t i = 0;
+    bool found = false;
+    while(i < NUM_TIMERS && !found)
+    {
+        found = fn[i] == callback;
+        if(found)
+        {
+            ticks[i] = 0;
+        }
+        i++;
+    }
+    return found;
 }
 
-// Function to Load Value for Timer 4B
-void setTimer4bValue(uint32_t valueTimer4b)
+bool restartTimer(_callback callback)
 {
-    WTIMER4_TBILR_R = valueTimer4b;   // Load value into Timer A
-    WTIMER4_CTL_R  |= TIMER_CTL_TBEN; // Enable interrupts for Timer B
+    uint8_t i = 0;
+    bool found = false;
+    while(i < NUM_TIMERS && !found)
+    {
+        found = fn[i] == callback;
+        if(found)
+        {
+            ticks[i] = period[i];
+        }
+        i++;
+    }
+    return found;
 }
-
-// Function to disable Timer 4A
-void disableTimer4a()
+void tickIsr()
 {
-    WTIMER4_CTL_R &= ~(TIMER_CTL_TAEN);
-}
-
-// Function to disable Timer 4B
-void diableTimer4b()
-{
-    WTIMER4_CTL_R &= ~(TIMER_CTL_TBEN);
+    uint8_t i = 0;
+    bool found = false;
+    for(i = 0; i < NUM_TIMERS; i++)
+    {
+        if(ticks[i] != 0)
+        {
+            ticks[i]--;
+            if(ticks[i] == 0)
+            {
+                if(reload[i])
+                {
+                    ticks[i] = period[i];
+                    (*fn[i])();
+                }
+            }
+            TIMER4_ICR_R = TIMER_ICR_TATOCINT;
+        }
+        i++;
+    }
 }

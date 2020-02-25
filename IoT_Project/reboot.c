@@ -45,7 +45,7 @@ void resetWatchdog()
 }
 
 // Watchdog timer ISR
-void watchdogIsr()
+void WatchdogIsr()
 {
     //This is the last chance to avoid a reset
     // Write to ICR to avoid a reset

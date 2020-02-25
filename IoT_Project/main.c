@@ -23,6 +23,7 @@
 #include "gpio.h"
 #include "dhcp.h"
 #include "ethernet.h"
+#include "timers.h"
 #include "reboot.h"
 #include "wait.h"
 
@@ -54,7 +55,8 @@ int main(void)
     // Initialize Hardware
     initHw();
     initUart0();
-    //initWatchdog();
+//    initWideTimers();
+//    initWatchdog();
 
     // Declare Variables
     USER_DATA userInput;
@@ -91,6 +93,22 @@ int main(void)
 
             // Tokenize User Input
             parseFields(&userInput);
+        }
+
+        // Handle renew lease request
+        if(renewRequest)
+        {
+
+        }
+        // Handle rebind request. On power-up rebindRequest = true
+        if(rebindRequest)
+        {
+
+        }
+        // Handle release request
+        if(releaseRequest)
+        {
+
         }
 
         // Packet processing
@@ -176,7 +194,7 @@ int main(void)
 
             strcpy(address,getFieldString(&userInput, 2)); // Retrieve network parameter address
 
-            if(strcmp(token, "ip") == 0)             // Set Internet Protocol address
+            if(strcmp(token, "ip") == 0)                   // Set Internet Protocol address
             {
                 putsUart0("set IP Function.\r\n");
             }

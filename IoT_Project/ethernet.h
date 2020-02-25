@@ -163,6 +163,8 @@ typedef struct _etherFrame // 14-bytes
   uint8_t  data;
 } etherFrame;
 
+// See RFC791 Section 3.1 for Internet Header Format
+// https://tools.ietf.org/html/rfc791#section-3.1
 typedef struct _ipFrame // minimum 20 bytes
 {
   uint8_t  revSize;
@@ -247,6 +249,8 @@ void etherSetIpSubnetMask(uint8_t mask0, uint8_t mask1, uint8_t mask2, uint8_t m
 void etherGetIpSubnetMask(uint8_t mask[4]);
 void etherSetMacAddress(uint8_t mac0, uint8_t mac1, uint8_t mac2, uint8_t mac3, uint8_t mac4, uint8_t mac5);
 void etherGetMacAddress(uint8_t mac[6]);
+void etherSumWords(void* data, uint16_t sizeInBytes);
+uint16_t getEtherChecksum();
 
 void initEthernetInterface();
 
