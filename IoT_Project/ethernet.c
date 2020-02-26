@@ -774,7 +774,7 @@ void displayConnectionInfo()
         if (i < 6-1)
             putcUart0(':');
     }
-    putcUart0('\n');
+    putsUart0("\r\n");
 
     // Retrieve IP Address
     etherGetIpAddress(ip);
@@ -792,7 +792,7 @@ void displayConnectionInfo()
         putsUart0(" (dhcp)");
     else
         putsUart0(" (static)");
-    putcUart0('\n');
+    putsUart0("\r\n");
 
     // Retrieve IP Subnet Mask
     etherGetIpSubnetMask(ip);
@@ -804,7 +804,7 @@ void displayConnectionInfo()
         if (i < 4-1)
             putcUart0('.');
     }
-    putcUart0('\n');
+    putsUart0("\r\n");
 
     // Retrieve IP Gateway Address
     etherGetIpGatewayAddress(ip);
@@ -816,13 +816,13 @@ void displayConnectionInfo()
         if (i < 4-1)
             putcUart0('.');
     }
-    putcUart0('\n');
+    putsUart0("\r\n");
 
     // Check if Ethernet Link is UP|DOWN
     if (etherIsLinkUp())
-        putsUart0("Link is up\n");
+        putsUart0("Link is up\r\n");
     else
-        putsUart0("Link is down\n");
+        putsUart0("Link is down\r\n");
 }
 
 // Init Ethernet Interface

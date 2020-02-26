@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include "tm4c123gh6pm.h"
 #include "eeprom.h"
 #include "ethernet.h"

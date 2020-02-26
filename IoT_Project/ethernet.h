@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include "tm4c123gh6pm.h"
 #include "wait.h"
 #include "gpio.h"
@@ -250,6 +251,7 @@ void etherGetIpSubnetMask(uint8_t mask[4]);
 void etherSetMacAddress(uint8_t mac0, uint8_t mac1, uint8_t mac2, uint8_t mac3, uint8_t mac4, uint8_t mac5);
 void etherGetMacAddress(uint8_t mac[6]);
 void etherSumWords(void* data, uint16_t sizeInBytes);
+void etherCalcIpChecksum(ipFrame* ip);
 uint16_t getEtherChecksum();
 
 void initEthernetInterface();
