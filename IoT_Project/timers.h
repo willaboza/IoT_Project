@@ -21,6 +21,9 @@
 extern bool renewRequest;
 extern bool rebindRequest;
 extern bool releaseRequest;
+extern uint32_t leaseTime;
+extern uint32_t renewalTime;
+extern uint32_t rebindTime;
 
 typedef void(*_callback)(void);
 _callback fn[NUM_TIMERS];

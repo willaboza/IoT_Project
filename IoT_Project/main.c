@@ -55,7 +55,8 @@ int main(void)
     // Initialize Hardware
     initHw();
     initUart0();
-//    initWideTimers();
+    initEeprom();
+//    initTimer();
 //    initWatchdog();
 
     // Declare Variables
@@ -66,10 +67,8 @@ int main(void)
     // Setup UART0 Baud Rate
     setUart0BaudRate(115200, 40e6);
 
-    // Init Ethernet Interface
-    putsUart0("Starting eth0\r\n");
-    initEthernetInterface();
     putsUart0("\r\n");
+    readDeviceConfig();
 
     // Flash LED
     setPinValue(GREEN_LED, 1);
@@ -100,20 +99,23 @@ int main(void)
             // Handle renew lease request
             if(renewRequest)
             {
+                sendDhcpRequestMessage(data);
 
+                renewRequest = false;
             }
             // Handle rebind request. On power-up rebindRequest = true
             if(rebindRequest)
             {
-                uint8_t dhcpDiscoveryOptions = 53;
-                uint8_t ipDiscoveryAdd[HW_ADD_LENGTH] = {0};
+                uint8_t dhcpOption[4] = {53,1,1,255};
 
-                sendDhcpDiscoverMessage(data, dhcpDiscoveryOptions, ipDiscoveryAdd);
+                sendDhcpDiscoverMessage(data, dhcpOption);
+
+                rebindRequest = false;
             }
             // Handle release request
             if(releaseRequest)
             {
-
+                renewRequest = false;
             }
         }
 
@@ -163,6 +165,23 @@ int main(void)
                          etherSendUdpResponse(data, (uint8_t*)"Received", 9);
                      }
                  }
+                 else if(etherIsDhcp(data))
+                 {
+                     uint8_t type;
+                     type = dhcpOfferType(data);
+                     switch(type)
+                     {
+                         case 1:
+                             sendDhcpRequestMessage(data);
+                             break;
+                         case 2:
+                             setDhcpAckInfo(data);
+                             // need to add code here to start renew and rebind timers
+                             break;
+                         default:
+                             putsUart0("DHCP Request Message not Recognized.\r\n");
+                     }
+                 }
              }
         }
 
@@ -174,13 +193,11 @@ int main(void)
 
             if(strcmp(token, "on") == 0)           // Enables DHCP mode and stores the mode persistently in EEPROM
             {
-                dhcpEnabled = true;
-                putsUart0("dhcp ON Function.\r\n");
+                etherEnableDhcpMode();
             }
             else if(strcmp(token, "off") == 0)     // Disables DHCP mode and stores the mode persistently in EEPROM
             {
-                dhcpEnabled = false;
-                putsUart0("dhcp OFF Function.\r\n");
+                etherDisableDhcpMode();
             }
             else if(strcmp(token, "refresh") == 0) // Refresh Current IP address (if in DHCP mode)
             {
@@ -224,7 +241,8 @@ int main(void)
         else if(userInput.endOfString && isCommand(&userInput, "ifconfig", 1))
         {
             userInput.fieldCount = 0;
-            putsUart0("ifconfig Function.\r\n");
+
+            displayIfconfigInfo(); // displays current MAC, IP, GW, SN, DNS, and DHCP mode
 
             resetUserInput(&userInput);
         }

@@ -7,12 +7,15 @@
 
 #include "timers.h"
 
-bool renewRequest = false;
-bool rebindRequest = true;
-bool releaseRequest = false;
+bool renewRequest    = false;
+bool rebindRequest   = true;
+bool releaseRequest  = false;
+uint32_t leaseTime   = 0;
+uint32_t renewalTime = 0;
+uint32_t rebindTime  = 0;
 
-//
-void initWideTimers()
+// Function To Initialize Timers
+void initTimer()
 {
     uint8_t i = 0;
 
@@ -20,12 +23,12 @@ void initWideTimers()
     SYSCTL_RCGCTIMER_R |= SYSCTL_RCGCTIMER_R4;
     _delay_cycles(3);
 
-    TIMER4_CTL_R   &= ~TIMER_CTL_TAEN;                        // turn-off counter before reconfiguring
-    TIMER4_CFG_R   = TIMER_CFG_32_BIT_TIMER;                                                          // configure as 32-bit counter
-    TIMER4_TAMR_R  = TIMER_TAMR_TAMR_PERIOD;                // configure for one-shot mode, count down
+    TIMER4_CTL_R   &= ~TIMER_CTL_TAEN;                     // turn-off counter before reconfiguring
+    TIMER4_CFG_R   = TIMER_CFG_32_BIT_TIMER;               // configure as 32-bit counter
+    TIMER4_TAMR_R  = TIMER_TAMR_TAMR_PERIOD;               // configure for one-shot mode, count down
     TIMER4_TAILR_R = 40000000;
     TIMER4_CTL_R   |= TIMER_CTL_TAEN;
-    TIMER4_IMR_R   |= TIMER_IMR_TATOIM;                       // enable interrupts
+    TIMER4_IMR_R   |= TIMER_IMR_TATOIM;                    // enable interrupts
     NVIC_EN2_R     |= (1 << (INT_TIMER4A-80));             // turn-on interrupt 86 (TIMER4A)
 
     for(i = 0; i < NUM_TIMERS; i++)
@@ -105,6 +108,7 @@ bool restartTimer(_callback callback)
 }
 void tickIsr()
 {
+    /*
     uint8_t i = 0;
     bool found = false;
     for(i = 0; i < NUM_TIMERS; i++)
@@ -124,4 +128,5 @@ void tickIsr()
         }
         i++;
     }
+    */
 }

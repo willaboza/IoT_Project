@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include "tm4c123gh6pm.h"
 #include "eeprom.h"
+#include "timers.h"
 #include "ethernet.h"
 
 // uint8_t dhcpServerIpAdd[4];
@@ -38,8 +39,11 @@ typedef struct _dhcpFrame
   uint8_t   options[0];
 } dhcpFrame;
 
-void sendDhcpDiscoverMessage(uint8_t packet[], uint8_t type, uint8_t ipAdd[]);
-void getDhcpOfferMessage(uint8_t packet[]);
-bool usingDhcp();
+void sendDhcpDiscoverMessage(uint8_t packet[], uint8_t type[]);
+void sendDhcpRequestMessage(uint8_t packet[]);
+void readDeviceConfig();
+bool etherIsDhcp(uint8_t packet[]);
+uint8_t dhcpOfferType(uint8_t packet[]);
+void setDhcpAckInfo(uint8_t packet[]);
 
 #endif /* DHCP_H_ */

@@ -139,6 +139,7 @@ extern uint8_t  macAddress[HW_ADD_LENGTH];
 extern uint8_t  ipAddress[IP_ADD_LENGTH];
 extern uint8_t  ipSubnetMask[IP_ADD_LENGTH];
 extern uint8_t  ipGwAddress[IP_ADD_LENGTH];
+extern uint8_t  ipDnsAddress[IP_ADD_LENGTH];
 extern bool     dhcpEnabled;
 
 // ------------------------------------------------------------------------------
@@ -253,12 +254,14 @@ void etherGetMacAddress(uint8_t mac[6]);
 void etherSumWords(void* data, uint16_t sizeInBytes);
 void etherCalcIpChecksum(ipFrame* ip);
 uint16_t getEtherChecksum();
-
+void setDnsAddress(uint8_t dns0, uint8_t dns1, uint8_t dns2, uint8_t dns3);
+void getDnsAddress(uint8_t dns[4]);
 void initEthernetInterface();
 
 uint16_t htons(uint16_t value);
 #define ntohs htons
 
 void displayConnectionInfo();
+void displayIfconfigInfo();
 
 #endif /* ETHERNET_H_ */

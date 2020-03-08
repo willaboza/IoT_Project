@@ -15,10 +15,11 @@ uint8_t  nextPacketLsb = 0x00;
 uint8_t  nextPacketMsb = 0x00;
 uint8_t  sequenceId = 1;
 uint32_t sum = 0;
-uint8_t  macAddress[HW_ADD_LENGTH] =   {2,3,4,5,6,7};
-uint8_t  ipAddress[IP_ADD_LENGTH] =    {0,0,0,0};
+uint8_t  macAddress[HW_ADD_LENGTH]   = {2,3,4,5,6,7};
+uint8_t  ipAddress[IP_ADD_LENGTH]    = {0,0,0,0};
 uint8_t  ipSubnetMask[IP_ADD_LENGTH] = {255,255,255,0};
-uint8_t  ipGwAddress[IP_ADD_LENGTH] =  {0,0,0,0};
+uint8_t  ipGwAddress[IP_ADD_LENGTH]  = {0,0,0,0};
+uint8_t  ipDnsAddress[IP_ADD_LENGTH]   = {0,0,0,0};
 bool     dhcpEnabled = true;
 
 void etherCsOn()
@@ -151,7 +152,7 @@ void etherInit(uint16_t mode)
     setSpi0Mode(0, 0);
 
     // Enable clocks
-    enablePort(PORTA);
+//    enablePort(PORTA); // Enabled during initialization of uart
     enablePort(PORTB);
     enablePort(PORTC);
 
@@ -344,7 +345,9 @@ bool etherPutPacket(uint8_t packet[], uint16_t size)
 
     // write data
     for (i = 0; i < size; i++)
+    {
         etherWriteMem(packet[i]);
+    }
 
     // stop write
     etherWriteMemStop();
@@ -486,7 +489,7 @@ void etherSendPingResponse(uint8_t packet[])
     etherSumWords(&icmp->id, icmp_size);
     icmp->check = getEtherChecksum();
     // send packet
-    etherPutPacket(ether, 14 + ntohs(ip->length));
+    etherPutPacket((uint8_t *)ether, 14 + ntohs(ip->length));
 }
 
 // Determines whether packet is ARP
@@ -529,7 +532,7 @@ void etherSendArpResponse(uint8_t packet[])
         arp->sourceIp[i] = tmp;
     }
     // send packet
-    etherPutPacket(ether, 42);
+    etherPutPacket((uint8_t *)ether, 42);
 }
 
 // Sends an ARP request
@@ -562,7 +565,7 @@ void etherSendArpRequest(uint8_t packet[], uint8_t ip[])
         arp->destIp[i] = ip[i];
     }
     // send packet
-    etherPutPacket(ether, 42);
+    etherPutPacket((uint8_t *)ether, 42);
 }
 
 // Determines whether packet is UDP datagram
@@ -610,6 +613,7 @@ void etherSendUdpResponse(uint8_t packet[], uint8_t* udpData, uint8_t udpSize)
     uint8_t *copyData;
     uint8_t i, tmp8;
     uint16_t tmp16;
+
     // swap source and destination fields
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
@@ -617,12 +621,14 @@ void etherSendUdpResponse(uint8_t packet[], uint8_t* udpData, uint8_t udpSize)
         ether->destAddress[i] = ether->sourceAddress[i];
         ether->sourceAddress[i] = tmp8;
     }
+
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
         tmp8 = ip->destIp[i];
         ip->destIp[i] = ip->sourceIp[i];
         ip->sourceIp[i] = tmp8;
     }
+
     // set source port of resp will be dest port of req
     // dest port of resp will be left at source port of req
     // unusual nomenclature, but this allows a different tx
@@ -652,7 +658,7 @@ void etherSendUdpResponse(uint8_t packet[], uint8_t* udpData, uint8_t udpSize)
     udp->check = getEtherChecksum();
 
     // send packet with size = ether + udp hdr + ip header + udp_size
-    etherPutPacket(ether, 22 + ((ip->revSize & 0xF) * 4) + udpSize);
+    etherPutPacket((uint8_t *)ether, 22 + ((ip->revSize & 0xF) * 4) + udpSize);
 }
 
 uint16_t etherGetId()
@@ -756,10 +762,27 @@ void etherGetMacAddress(uint8_t mac[6])
         mac[i] = macAddress[i];
 }
 
+// Set DNS Address
+void setDnsAddress(uint8_t dns0, uint8_t dns1, uint8_t dns2, uint8_t dns3)
+{
+    ipDnsAddress[0] = dns0;
+    ipDnsAddress[1] = dns1;
+    ipDnsAddress[2] = dns2;
+    ipDnsAddress[3] = dns3;
+}
+
+// Get DNS Address
+void getDnsAddress(uint8_t dns[4])
+{
+    uint8_t i;
+    for (i = 0; i < 4; i++)
+        dns[i] = ipDnsAddress[i];
+}
+
 // Function to Ethernet Connection Information
 void displayConnectionInfo()
 {
-    char    str[10];
+    char str[10];
     uint8_t i;
     uint8_t mac[6];
     uint8_t ip[4];
@@ -767,11 +790,11 @@ void displayConnectionInfo()
     // Retrieve Mac Address
     etherGetMacAddress(mac);
     putsUart0("HW: ");
-    for (i = 0; i < 6; i++)
+    for (i = 0; i < HW_ADD_LENGTH; i++)
     {
-        sprintf(str, "%02x", mac[i]);
+        sprintf(str, "%02u", mac[i]);
         putsUart0(str);
-        if (i < 6-1)
+        if (i < (HW_ADD_LENGTH - 1))
             putcUart0(':');
     }
     putsUart0("\r\n");
@@ -825,6 +848,83 @@ void displayConnectionInfo()
         putsUart0("Link is down\r\n");
 }
 
+
+// Function to Ethernet Connection Information
+void displayIfconfigInfo()
+{
+    char str[10];
+    uint8_t i;
+    uint8_t mac[6];
+    uint8_t ip[4];
+
+    // Retrieve Mac Address
+    etherGetMacAddress(mac);
+    putsUart0("MAC: ");
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        sprintf(str, "%02u", mac[i]);
+        putsUart0(str);
+        if (i < (HW_ADD_LENGTH - 1))
+            putcUart0(':');
+    }
+    putsUart0("\r\n");
+
+    // Retrieve IP Address
+    etherGetIpAddress(ip);
+    putsUart0("IP: ");
+    for (i = 0; i < 4; i++)
+    {
+        sprintf(str, "%u", ip[i]);
+        putsUart0(str);
+        if (i < 4-1)
+            putcUart0('.');
+    }
+
+    // Check if DHCP Mode is Enabled
+    if (etherIsDhcpEnabled())
+        putsUart0(" (dhcp)");
+    else
+        putsUart0(" (static)");
+    putsUart0("\r\n");
+
+    // Retrieve IP Subnet Mask
+    etherGetIpSubnetMask(ip);
+    putsUart0("SN: ");
+    for (i = 0; i < 4; i++)
+    {
+        sprintf(str, "%u", ip[i]);
+        putsUart0(str);
+        if (i < 4-1)
+            putcUart0('.');
+    }
+    putsUart0("\r\n");
+
+    // Retrieve IP Gateway Address
+    etherGetIpGatewayAddress(ip);
+    putsUart0("GW: ");
+    for (i = 0; i < 4; i++)
+    {
+        sprintf(str, "%u", ip[i]);
+        putsUart0(str);
+        if (i < 4-1)
+            putcUart0('.');
+    }
+    putsUart0("\r\n");
+
+    // Retrieve IP Gateway Address
+    getDnsAddress(ip);
+    putsUart0("DNS: ");
+    for (i = 0; i < 4; i++)
+    {
+        sprintf(str, "%u", ip[i]);
+        putsUart0(str);
+        if (i < 4-1)
+            putcUart0('.');
+    }
+    putsUart0("\r\n");
+
+}
+
 // Init Ethernet Interface
 void initEthernetInterface()
 {
@@ -835,5 +935,4 @@ void initEthernetInterface()
     etherSetIpSubnetMask(255, 255, 255, 0);
     etherSetIpGatewayAddress(192, 168, 1, 1);
     waitMicrosecond(100000);
-    displayConnectionInfo();
 }
