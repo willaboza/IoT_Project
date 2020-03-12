@@ -24,6 +24,7 @@
 #include "dhcp.h"
 #include "ethernet.h"
 #include "timers.h"
+#include "tcp.h"
 #include "reboot.h"
 #include "wait.h"
 
@@ -99,23 +100,20 @@ int main(void)
             // Handle renew lease request
             if(renewRequest)
             {
-                sendDhcpRequestMessage(data);
-
+                sendDhcpMessage(data, 3);
                 renewRequest = false;
             }
             // Handle rebind request. On power-up rebindRequest = true
             if(rebindRequest)
             {
-                uint8_t dhcpOption[4] = {53,1,1,255};
-
-                sendDhcpDiscoverMessage(data, dhcpOption);
-
+                sendDhcpMessage(data, 1);
                 rebindRequest = false;
             }
             // Handle release request
             if(releaseRequest)
             {
-                renewRequest = false;
+                sendDhcpMessage(data, 7);
+                releaseRequest = false;
             }
         }
 
@@ -132,10 +130,18 @@ int main(void)
             // Get packet
              etherGetPacket(data, MAX_PACKET_SIZE);
 
-             // Handle ARP request
+             // Handle ARP request or response
              if (etherIsArpRequest(data))
              {
                  etherSendArpResponse(data);
+             }
+             else if(etherIsArpResponse(data))
+             {
+                 // If ARP Response received before 2 second timer elapses
+                 // then send decline message, invalidate IP and use static IP,
+                 // wait at least 10 seconds and send another DHCP discover message.
+                 etherSetMacAddress(2, 3, 4, 5, 6, UNIQUE_ID);
+                 etherSetIpAddress(192, 168, 1, UNIQUE_ID);
              }
 
              // Handle IP datagram
@@ -164,6 +170,34 @@ int main(void)
                              setPinValue(GREEN_LED, 0);
                          etherSendUdpResponse(data, (uint8_t*)"Received", 9);
                      }
+
+                     // Handle TCP messages here
+                     // We are coding up at TCP Server for HTTP or Telnet
+                     if(etherIsTcp(data))
+                     {
+                         uint8_t type;
+
+                         type = etherIsTcpMsgType(data);
+
+                         switch(type)
+                         {
+                             case 1: // Response to Initial SYN
+                                 sendTcpMessage(data, 0x5012); // Send SYN+ACK
+                                 break;
+                             case 2: // ACK Received
+                                 putsUart0("  TCP Connection Established.\r\n");
+                                 break;
+                             case 3: // Response to PSH
+                                 sendTcpMessage(data, 0x5008); // Send ACK
+                                 break;
+                             case 4: // Response to FIN
+                                 sendTcpMessage(data, 0x5011); // Send FIN+ACK
+                                 break;
+                             default:
+                                 putsUart0("  TCP Message NOT Recognized\r\n");
+                         }
+
+                     }
                  }
                  else if(etherIsDhcp(data))
                  {
@@ -172,14 +206,20 @@ int main(void)
                      switch(type)
                      {
                          case 1:
-                             sendDhcpRequestMessage(data);
+                             sendDhcpMessage(data, 3); // Send DHCP Request Message
                              break;
                          case 2:
                              setDhcpAckInfo(data);
-                             // need to add code here to start renew and rebind timers
+
+                             // Rebind and Renew Timer Code Here
+
+                             // A gratuitous ARP request has the source and destination
+                             // IP set to the IP of the machine issuing the packet and
+                             // destination MAC is the broadcast address ff:ff:ff:ff:ff:ff
+                             etherSendArpRequest(data);
                              break;
                          default:
-                             putsUart0("DHCP Request Message not Recognized.\r\n");
+                             setPinValue(RED_LED, 1);
                      }
                  }
              }
@@ -201,11 +241,25 @@ int main(void)
             }
             else if(strcmp(token, "refresh") == 0) // Refresh Current IP address (if in DHCP mode)
             {
-                putsUart0("dhcp REFRESH Function.\r\n");
+                if(dhcpEnabled)
+                {
+                    renewRequest = true;
+                }
+                else
+                {
+                    putsUart0("  DHCP Mode NOT Enabled.\r\n");
+                }
             }
             else if(strcmp(token, "release") == 0) // Release Current IP address (if in DHCP mode)
             {
-                putsUart0("dhcp RELEASE Function.\r\n");
+                if(dhcpEnabled)
+                {
+                    releaseRequest = true;
+                }
+                else
+                {
+                    putsUart0("  DHCP Mode NOT Enabled.\r\n");
+                }
             }
 
             resetUserInput(&userInput);

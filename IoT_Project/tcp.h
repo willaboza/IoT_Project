@@ -18,27 +18,25 @@
 #include "tm4c123gh6pm.h"
 #include "ethernet.h"
 
-// uint8_t dhcpServerIpAdd[4];
+extern bool openState;
+extern bool establishedState;
+extern bool closeState;
 
-typedef struct _tcpFrame
+typedef struct _tcpFrame // 20 Bytes in Length
 {
-  uint16_t  srcPort;
-  uint16_t  dstPort;
+  uint16_t  sourcePort;
+  uint16_t  destPort;
   uint32_t  seqNum;
   uint32_t  ackNum;
-  uint16_t  dataOffset; // Contains info for data offset(4-bits), reserved (6-bits), and control bits (6-bits) field,
+  uint16_t  dataCtrlFields;
   uint16_t  window;
   uint16_t  checksum;
   uint16_t  urgentPointer;
-  uint8_t   options;
-  uint8_t   siaddr[4];
-  uint8_t   giaddr[4];
-  uint8_t   chaddr[16];
-  uint8_t   data[192];
-  uint32_t  magicCookie;
-  uint8_t   options[];
+  uint8_t   data[0];
 } tcpFrame;
 
-
+bool etherIsTcp(uint8_t packet[]);
+uint8_t etherIsTcpMsgType(uint8_t packet[]);
+void sendTcpMessage(uint8_t packet[], uint16_t flags);
 
 #endif /* TCP_H_ */

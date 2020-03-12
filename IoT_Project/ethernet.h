@@ -26,6 +26,9 @@
 // Ether frame header (18) + Max MTU (1500) + CRC (4)
 #define MAX_PACKET_SIZE 1522
 
+// User IP and MAC Unique ID for Static Mode
+#define UNIQUE_ID 106
+
 // Pins
 #define CS  PORTA,3
 #define WOL PORTB,3
@@ -136,6 +139,8 @@ extern uint8_t  nextPacketMsb;
 extern uint8_t  sequenceId;
 extern uint32_t sum;
 extern uint8_t  macAddress[HW_ADD_LENGTH];
+extern uint8_t  serverMacAddress[HW_ADD_LENGTH];
+extern uint8_t  serverIpAddress[IP_ADD_LENGTH];
 extern uint8_t  ipAddress[IP_ADD_LENGTH];
 extern uint8_t  ipSubnetMask[IP_ADD_LENGTH];
 extern uint8_t  ipGwAddress[IP_ADD_LENGTH];
@@ -232,8 +237,9 @@ bool etherIsPingRequest(uint8_t packet[]);
 void etherSendPingResponse(uint8_t packet[]);
 
 bool etherIsArpRequest(uint8_t packet[]);
+bool etherIsArpResponse(uint8_t packet[]);
 void etherSendArpResponse(uint8_t packet[]);
-void etherSendArpRequest(uint8_t packet[], uint8_t ip[]);
+void etherSendArpRequest(uint8_t packet[]);
 
 bool etherIsUdp(uint8_t packet[]);
 uint8_t* etherGetUdpData(uint8_t packet[]);
@@ -260,6 +266,7 @@ void initEthernetInterface();
 
 uint16_t htons(uint16_t value);
 #define ntohs htons
+uint32_t htons32(uint32_t value);
 
 void displayConnectionInfo();
 void displayIfconfigInfo();

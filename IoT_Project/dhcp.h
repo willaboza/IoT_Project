@@ -40,7 +40,8 @@ typedef struct _dhcpFrame
 } dhcpFrame;
 
 void sendDhcpDiscoverMessage(uint8_t packet[], uint8_t type[]);
-void sendDhcpRequestMessage(uint8_t packet[]);
+// void sendDhcpRequestMessage(uint8_t packet[]);
+void sendDhcpMessage(uint8_t packet[], uint8_t type);
 void readDeviceConfig();
 bool etherIsDhcp(uint8_t packet[]);
 uint8_t dhcpOfferType(uint8_t packet[]);
