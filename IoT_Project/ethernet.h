@@ -270,5 +270,6 @@ uint32_t htons32(uint32_t value);
 
 void displayConnectionInfo();
 void displayIfconfigInfo();
+void setStaticNetworkAddresses();
 
 #endif /* ETHERNET_H_ */

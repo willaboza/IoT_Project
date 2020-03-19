@@ -541,12 +541,11 @@ void etherSendArpResponse(uint8_t packet[])
 {
     etherFrame* ether = (etherFrame*)packet;
     arpFrame* arp = (arpFrame*)&ether->data;
-    uint8_t i;
+    uint8_t i, tmp8;
     // fill ethernet frame
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
-        ether->destAddress[i] = ether->sourceAddress[i];
-//        ether->destAddress[i] = 0xFF;
+        ether->destAddress[i] = 0xFF;
         ether->sourceAddress[i] = macAddress[i];
     }
     ether->frameType = htons(0x0806);
@@ -555,8 +554,7 @@ void etherSendArpResponse(uint8_t packet[])
     arp->protocolType = htons(0x0800);
     arp->hardwareSize = 6;
     arp->protocolSize = 4;
-    arp->op = htons(2); // set op to response
-    // swap source and destination fields
+    arp->op = htons(2);
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
         arp->destAddress[i] = arp->sourceAddress[i];
@@ -970,4 +968,14 @@ void initEthernetInterface()
     etherSetIpSubnetMask(255, 255, 255, 0);
     etherSetIpGatewayAddress(192, 168, 1, 1);
     waitMicrosecond(100000);
+}
+
+//
+void setStaticNetworkAddresses()
+{
+    etherSetMacAddress(2, 3, 4, 5, 6, UNIQUE_ID);
+    etherDisableDhcpMode();
+    etherSetIpAddress(192, 168, 1, UNIQUE_ID);
+    etherSetIpSubnetMask(255, 255, 255, 0);
+    etherSetIpGatewayAddress(192, 168, 1, 1);
 }

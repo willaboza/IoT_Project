@@ -166,5 +166,5 @@ void printMainMenu()
     putsUart0("  set IP|GW|DNS|SN w.x.y.z\r\n");
     putsUart0("  ifconfig\r\n");
     putsUart0("  reboot\r\n");
-    putsUart0("\r\n");
+//    putsUart0("\r\n");
 }

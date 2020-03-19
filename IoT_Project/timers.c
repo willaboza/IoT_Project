@@ -1,9 +1,20 @@
-/*
- * timers.c
- *
- *  Created on: Feb 20, 2020
- *      Author: William Bozarth
- */
+// Timer Service Library
+// Jason Losh
+
+//-----------------------------------------------------------------------------
+// Hardware Target
+//-----------------------------------------------------------------------------
+
+// Target Platform: EK-TM4C123GXL
+// Target uC:       TM4C123GH6PM
+// System Clock:    40 MHz
+
+// Hardware configuration:
+// Timer 4
+
+//-----------------------------------------------------------------------------
+// Device includes, defines, and assembler directives
+//-----------------------------------------------------------------------------
 
 #include "timers.h"
 
@@ -47,11 +58,14 @@ bool startOneShotTimer(_callback callback, uint32_t seconds)
     bool found = false;
     while(i < NUM_TIMERS && !found)
     {
-        found     = fn[i] == NULL;
-        period[i] = seconds;
-        ticks[i]  = seconds;
-        fn[i]     = callback;
-        reload[i] = false;
+        found = fn[i] == NULL;
+        if (found)
+        {
+            period[i] = seconds;
+            ticks[i] = seconds;
+            fn[i] = callback;
+            reload[i] = false;
+        }
         i++;
     }
     return found;
@@ -64,11 +78,14 @@ bool startPeriodicTimer(_callback callback, uint32_t seconds)
     bool found = false;
     while(i < NUM_TIMERS && !found)
     {
-        found     = fn[i] == NULL;
-        period[i] = seconds;
-        ticks[i]  = seconds;
-        fn[i]     = callback;
-        reload[i] = false;
+        found = fn[i] == NULL;
+        if (found)
+        {
+            period[i] = seconds;
+            ticks[i] = seconds;
+            fn[i] = callback;
+            reload[i] = true;
+        }
         i++;
     }
     return found;
@@ -108,25 +125,25 @@ bool restartTimer(_callback callback)
 }
 void tickIsr()
 {
-    /*
-    uint8_t i = 0;
-    bool found = false;
-    for(i = 0; i < NUM_TIMERS; i++)
+    uint8_t i;
+    for (i = 0; i < NUM_TIMERS; i++)
     {
-        if(ticks[i] != 0)
+        if (ticks[i] != 0)
         {
             ticks[i]--;
-            if(ticks[i] == 0)
+            if (ticks[i] == 0)
             {
-                if(reload[i])
-                {
+                if (reload[i])
                     ticks[i] = period[i];
-                    (*fn[i])();
-                }
+                (*fn[i])();
             }
-            TIMER4_ICR_R = TIMER_ICR_TATOCINT;
         }
-        i++;
     }
-    */
+    TIMER4_ICR_R = TIMER_ICR_TATOCINT;
+}
+
+// Placeholder random number function
+uint32_t random32()
+{
+    return TIMER4_TAV_R;
 }

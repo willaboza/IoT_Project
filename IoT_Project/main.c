@@ -112,7 +112,8 @@ int main(void)
             // Handle release request
             if(releaseRequest)
             {
-                sendDhcpMessage(data, 7);
+                sendDhcpReleaseMessage(data);
+                setStaticNetworkAddresses();
                 releaseRequest = false;
             }
         }
@@ -140,8 +141,7 @@ int main(void)
                  // If ARP Response received before 2 second timer elapses
                  // then send decline message, invalidate IP and use static IP,
                  // wait at least 10 seconds and send another DHCP discover message.
-                 etherSetMacAddress(2, 3, 4, 5, 6, UNIQUE_ID);
-                 etherSetIpAddress(192, 168, 1, UNIQUE_ID);
+                 // etherSetIpAddress(192, 168, 1, UNIQUE_ID);
              }
 
              // Handle IP datagram
@@ -179,24 +179,48 @@ int main(void)
 
                          type = etherIsTcpMsgType(data);
 
-                         switch(type)
+                         if(listenState)
                          {
-                             case 1: // Response to Initial SYN
+                             if(type == 1) // Response to Initial SYN
+                             {
                                  sendTcpMessage(data, 0x5012); // Send SYN+ACK
-                                 break;
-                             case 2: // ACK Received
+                             }
+                             else if(type == 2)
+                             {
+                                 listenState = false;
+                                 establishedState = true;
                                  putsUart0("  TCP Connection Established.\r\n");
-                                 break;
-                             case 3: // Response to PSH
-                                 sendTcpMessage(data, 0x5008); // Send ACK
-                                 break;
-                             case 4: // Response to FIN
-                                 sendTcpMessage(data, 0x5011); // Send FIN+ACK
-                                 break;
-                             default:
-                                 putsUart0("  TCP Message NOT Recognized\r\n");
+                             }
                          }
+                         else if(establishedState)
+                         {
+                             getTcpData(data);
+                             sendTcpMessage(data, 0x5010); // Send ACK
 
+                             /*
+                             if(type == 3) // Response to PSH
+                             {
+                                 sendTcpMessage(data, 0x5008); // Send ACK
+                             }
+                             */
+                         }
+                         else if(closeState)
+                         {
+                             if(type == 2)
+                             {
+                                 closeState = false;
+                                 listenState = true;
+                             }
+                             else if(type == 4) // Connection Termination
+                             {
+                                 // sendTcpMessage(data, 0x5010); // Send ACK
+                                 sendTcpMessage(data, 0x5011); // Send FIN+ACK
+                             }
+                         }
+                         else
+                         {
+                             putsUart0("  TCP Message NOT Recognized\r\n");
+                         }
                      }
                  }
                  else if(etherIsDhcp(data))

@@ -38,6 +38,7 @@ bool startPeriodicTimer();
 bool stopTimer();
 bool restartTimer();
 void tickIsr();
+uint32_t random32();
 
 
 #endif /* TIMERS_H_ */

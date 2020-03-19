@@ -18,8 +18,6 @@
 #include "timers.h"
 #include "ethernet.h"
 
-// uint8_t dhcpServerIpAdd[4];
-
 typedef struct _dhcpFrame
 {
   uint8_t   op;
@@ -42,6 +40,7 @@ typedef struct _dhcpFrame
 void sendDhcpDiscoverMessage(uint8_t packet[], uint8_t type[]);
 // void sendDhcpRequestMessage(uint8_t packet[]);
 void sendDhcpMessage(uint8_t packet[], uint8_t type);
+void sendDhcpReleaseMessage(uint8_t packet[]);
 void readDeviceConfig();
 bool etherIsDhcp(uint8_t packet[]);
 uint8_t dhcpOfferType(uint8_t packet[]);

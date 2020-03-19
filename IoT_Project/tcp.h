@@ -18,18 +18,18 @@
 #include "tm4c123gh6pm.h"
 #include "ethernet.h"
 
-extern bool openState;
+extern bool listenState;
 extern bool establishedState;
 extern bool closeState;
 
 typedef struct _tcpFrame // 20 Bytes in Length
 {
-  uint16_t  sourcePort;
-  uint16_t  destPort;
-  uint32_t  seqNum;
-  uint32_t  ackNum;
-  uint16_t  dataCtrlFields;
-  uint16_t  window;
+  uint16_t  sourcePort;     // 2
+  uint16_t  destPort;       // 2
+  uint32_t  seqNum;         // 4
+  uint32_t  ackNum;         // 4
+  uint16_t  dataCtrlFields; // 2
+  uint16_t  window;         // 2 = 16 bytes
   uint16_t  checksum;
   uint16_t  urgentPointer;
   uint8_t   data[0];
@@ -38,5 +38,6 @@ typedef struct _tcpFrame // 20 Bytes in Length
 bool etherIsTcp(uint8_t packet[]);
 uint8_t etherIsTcpMsgType(uint8_t packet[]);
 void sendTcpMessage(uint8_t packet[], uint16_t flags);
+void getTcpData(uint8_t packet[]);
 
 #endif /* TCP_H_ */
