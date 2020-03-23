@@ -58,7 +58,7 @@ int main(void)
     initUart0();
     initEeprom();
     initTimer();
-//    initWatchdog();
+    initWatchdog();
 
     // Declare Variables
     USER_DATA userInput;
@@ -344,25 +344,25 @@ int main(void)
             {
                 etherSetIpAddress(add1, add2, add3, add4);
                 storeAddressEeprom(add1, add2, add3, add4, 0x0011);
-                putsUart0("  IP Set\r\n");
+                //putsUart0("  IP Set\r\n");
             }
             else if(strcmp(token, "gw") == 0) // Set Gateway address
             {
                 etherSetIpGatewayAddress(add1, add2, add3, add4);
                 storeAddressEeprom(add1, add2, add3, add4, 0x0012);
-                putsUart0("  GW Set.\r\n");
+                //putsUart0("  GW Set.\r\n");
             }
             else if(strcmp(token, "dns") == 0) // Set Domain Name System address
             {
                 setDnsAddress(add1, add2, add3, add4);
                 storeAddressEeprom(add1, add2, add3, add4, 0x0013);
-                putsUart0("  DNS Set\r\n");
+                //putsUart0("  DNS Set\r\n");
             }
             else if(strcmp(token, "sn") == 0) // Set Sub-net Mask
             {
                 etherSetIpSubnetMask(add1, add2, add3, add4);
                 storeAddressEeprom(add1, add2, add3, add4, 0x0014);
-                putsUart0("  SN Set\r\n");
+                //putsUart0("  SN Set\r\n");
             }
             resetUserInput(&userInput);
         }
@@ -374,8 +374,10 @@ int main(void)
         }
         else if(userInput.endOfString && isCommand(&userInput, "reboot", 1))
         {
+            while (EEPROM_EEDONE_R & EEPROM_EEDONE_WORKING); // Ensure no Read or Writes to EEPROM are occuring
             putsUart0("Rebooting System...\r\n");
             rebootFlag = true;
+            resetUserInput(&userInput);
         }
         else if(userInput.endOfString)
         {

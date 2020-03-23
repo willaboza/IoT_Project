@@ -19,15 +19,15 @@
 #include "timers.h"
 
 uint8_t dhcpRequestsSent = 0;
-uint8_t dhcpRequestType = 0;
+uint8_t dhcpRequestType  = 0;
 
-bool renewRequest       = false;
-bool rebindRequest      = true;
-bool releaseRequest     = false;
-
-bool arpResponseRx = false;
-bool dhcpAckRx = false;
-bool dhcpNackRx = false;
+bool renewRequest   = false;
+bool rebindRequest  = true;
+bool releaseRequest = false;
+uint32_t leaseTime  = 0;
+bool arpResponseRx  = false;
+bool dhcpAckRx      = false;
+bool dhcpNackRx     = false;
 
 bool reload[NUM_TIMERS]     = {0};
 uint32_t period[NUM_TIMERS] = {0};

@@ -30,6 +30,6 @@ extern bool rebootFlag;
 
 void initWatchdog();
 void resetWatchdog();
-extern void WatchdogIsr();
+extern void watchdogIsr();
 
 #endif /* REBOOT_H_ */

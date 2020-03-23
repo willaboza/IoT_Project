@@ -815,7 +815,6 @@ uint8_t dhcpOfferType(uint8_t packet[])
         }
         else if(dhcp->options[i] == 0x33) // Option 51, Lease Time
         {
-            uint32_t leaseTime = 0;
             length = dhcp->options[++i];
             leaseTime = dhcp->options[i+1];
             i+=length;
