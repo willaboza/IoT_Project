@@ -18,6 +18,10 @@
 #include "timers.h"
 #include "ethernet.h"
 
+#define LEASE_TIME_DIVISOR 650
+
+extern uint32_t transactionId;
+
 typedef struct _dhcpFrame
 {
   uint8_t   op;
@@ -38,12 +42,15 @@ typedef struct _dhcpFrame
 } dhcpFrame;
 
 void sendDhcpDiscoverMessage(uint8_t packet[], uint8_t type[]);
-// void sendDhcpRequestMessage(uint8_t packet[]);
+void sendDhcpDeclineMessage(uint8_t packet[]);
 void sendDhcpMessage(uint8_t packet[], uint8_t type);
 void sendDhcpReleaseMessage(uint8_t packet[]);
+void sendDhcpRequestMessage(uint8_t packet[]);
 void readDeviceConfig();
 bool etherIsDhcp(uint8_t packet[]);
 uint8_t dhcpOfferType(uint8_t packet[]);
-void setDhcpAckInfo(uint8_t packet[]);
+void getDhcpAckInfo(uint8_t packet[]);
+void storeAddressEeprom(uint8_t add1, uint8_t add2, uint8_t add3, uint8_t add4, uint16_t block);
+void eraseAddressEeprom();
 
 #endif /* DHCP_H_ */

@@ -20,7 +20,7 @@
 #include "uart.h"
 
 #define MAX_CHARS 80
-#define MAX_FIELDS 5
+#define MAX_FIELDS 8
 
 typedef struct _USER_DATA
 {

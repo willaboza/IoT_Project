@@ -196,7 +196,7 @@ typedef struct _icmpFrame
   uint8_t  data;
 } icmpFrame;
 
-typedef struct _arpFrame
+typedef struct _arpFrame // 28
 {
   uint16_t hardwareType;
   uint16_t protocolType;

@@ -21,24 +21,33 @@
 extern bool renewRequest;
 extern bool rebindRequest;
 extern bool releaseRequest;
+extern bool arpResponseRx;
+extern bool dhcpAckRx;
+extern bool dhcpNackRx;
 extern uint32_t leaseTime;
-extern uint32_t renewalTime;
-extern uint32_t rebindTime;
+extern uint8_t dhcpRequestType;
 
 typedef void(*_callback)(void);
-_callback fn[NUM_TIMERS];
-
-uint32_t period[NUM_TIMERS];
-uint32_t ticks[NUM_TIMERS];
-bool reload[NUM_TIMERS];
+extern _callback fn[NUM_TIMERS];
+extern uint32_t period[NUM_TIMERS];
+extern uint32_t ticks[NUM_TIMERS];
+extern bool reload[NUM_TIMERS];
+extern uint8_t dhcpRequestsSent;
 
 void initTimer();
-bool startOneShotTimer();
-bool startPeriodicTimer();
-bool stopTimer();
-bool restartTimer();
+bool startOneShotTimer(_callback callback, uint32_t seconds);
+bool startPeriodicTimer(_callback callback, uint32_t seconds);
+bool stopTimer(_callback callback);
+bool restartTimer(_callback callback);
+void resetAllTimers();
 void tickIsr();
 uint32_t random32();
+void renewalTimer();
+void rebindTimer();
+void arpResponseTimer();
+void waitTimer();
+void renewRetransmitTimer();
+void rebindRetransmitTimer();
 
 
 #endif /* TIMERS_H_ */

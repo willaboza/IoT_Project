@@ -15,12 +15,12 @@ uint8_t nextPacketLsb = 0x00;
 uint8_t nextPacketMsb = 0x00;
 uint8_t sequenceId    = 1;
 uint32_t sum = 0;
-uint8_t macAddress[HW_ADD_LENGTH]       = {2,3,4,5,6,7};
+uint8_t macAddress[HW_ADD_LENGTH]       = {2,3,4,5,6,UNIQUE_ID};
 uint8_t serverMacAddress[HW_ADD_LENGTH] = {0,0,0,0,0,0};
-uint8_t ipAddress[IP_ADD_LENGTH]        = {0,0,0,0};
+uint8_t ipAddress[IP_ADD_LENGTH]        = {192, 168, 1, UNIQUE_ID};
 uint8_t serverIpAddress[IP_ADD_LENGTH]  = {0,0,0,0};
 uint8_t ipSubnetMask[IP_ADD_LENGTH]     = {255,255,255,0};
-uint8_t ipGwAddress[IP_ADD_LENGTH]      = {0,0,0,0};
+uint8_t ipGwAddress[IP_ADD_LENGTH]      = {192, 168, 1, 1};
 uint8_t ipDnsAddress[IP_ADD_LENGTH]     = {0,0,0,0};
 bool dhcpEnabled = true;
 
@@ -514,7 +514,9 @@ bool etherIsArpRequest(uint8_t packet[])
         i++;
     }
     if (ok)
+    {
         ok = (arp->op == htons(1));
+    }
     return ok;
 }
 
@@ -541,29 +543,21 @@ void etherSendArpResponse(uint8_t packet[])
 {
     etherFrame* ether = (etherFrame*)packet;
     arpFrame* arp = (arpFrame*)&ether->data;
-    uint8_t i, tmp8;
-    // fill ethernet frame
-    for (i = 0; i < HW_ADD_LENGTH; i++)
-    {
-        ether->destAddress[i] = 0xFF;
-        ether->sourceAddress[i] = macAddress[i];
-    }
-    ether->frameType = htons(0x0806);
-    // fill arp frame
-    arp->hardwareType = htons(1);
-    arp->protocolType = htons(0x0800);
-    arp->hardwareSize = 6;
-    arp->protocolSize = 4;
+    uint8_t i, tmp;
+    // set op to response
     arp->op = htons(2);
+    // swap source and destination fields
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
         arp->destAddress[i] = arp->sourceAddress[i];
-        arp->sourceAddress[i] = macAddress[i];
+        ether->destAddress[i] = ether->sourceAddress[i];
+        ether->sourceAddress[i] = arp->sourceAddress[i] = macAddress[i];
     }
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
+        tmp = arp->destIp[i];
         arp->destIp[i] = arp->sourceIp[i];
-        arp->sourceIp[i] = ipAddress[i];
+        arp->sourceIp[i] = tmp;
     }
     // send packet
     etherPutPacket((uint8_t *)ether, 42);
@@ -967,15 +961,17 @@ void initEthernetInterface()
     etherSetIpAddress(192, 168, 1, UNIQUE_ID);
     etherSetIpSubnetMask(255, 255, 255, 0);
     etherSetIpGatewayAddress(192, 168, 1, 1);
+    setDnsAddress(0, 0, 0, 0);
     waitMicrosecond(100000);
 }
 
 //
 void setStaticNetworkAddresses()
 {
-    etherSetMacAddress(2, 3, 4, 5, 6, UNIQUE_ID);
+    // etherSetMacAddress(2, 3, 4, 5, 6, UNIQUE_ID);
     etherDisableDhcpMode();
     etherSetIpAddress(192, 168, 1, UNIQUE_ID);
     etherSetIpSubnetMask(255, 255, 255, 0);
     etherSetIpGatewayAddress(192, 168, 1, 1);
+    setDnsAddress(0, 0, 0, 0);
 }

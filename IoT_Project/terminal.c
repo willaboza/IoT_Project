@@ -68,7 +68,7 @@ void parseFields(USER_DATA* data)
             }
             data->characterCount = ++count;
         }
-        else if(('0' <= c && c <= '9') || ',' == c ||  c == '.') //Code executes for numerics same as alpha
+        else if(('0' <= c && c <= '9') || ',' == c) //Code executes for numerics same as alpha
         {
             if(data->delimeter == true)
             {
