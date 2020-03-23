@@ -7,6 +7,9 @@
 
 #include "ethernet.h"
 
+#define GREEN_LED PORTF,   3
+#define BLUE_LED PORTF,    2
+
 // Buffer is configured as follows
 // Receive buffer starts at 0x0000 (bottom 6666 bytes of 8K space)
 // Transmit buffer at 01A0A (top 1526 bytes of 8K space)
@@ -154,9 +157,11 @@ void etherInit(uint16_t mode)
     setSpi0Mode(0, 0);
 
     // Enable clocks
-//    enablePort(PORTA); // Enabled during initialization of uart
     enablePort(PORTB);
     enablePort(PORTC);
+
+    selectPinPushPullOutput(GREEN_LED);
+    selectPinPushPullOutput(BLUE_LED);
 
     // Configure pins for ethernet module
     selectPinPushPullOutput(CS);

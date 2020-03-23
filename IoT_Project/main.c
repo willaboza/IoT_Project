@@ -170,7 +170,7 @@ int main(void)
                          if(type == 2) // DHCPACK Rx
                          {
                              getDhcpAckInfo(data); // Get Information in DHCPACK Message
-                             putsUart0("  Unicast DHCP Rx\r\n");
+                             //putsUart0("  Unicast DHCP Rx\r\n");
                          }
                          else if(type == 3) // DHCPNACK Rx
                          {
@@ -281,14 +281,8 @@ int main(void)
             {
                 if(dhcpEnabled)
                 {
-                    // Erase Values Stored in EEPROM
-                    writeEeprom(0x0010, 0xFFFFFFFF); // DHCP Mode
-                    /*
-                    writeEeprom(0x0011, 0xFFFFFFFF); // IP
-                    writeEeprom(0x0012, 0xFFFFFFFF); // GW
-                    writeEeprom(0x0013, 0xFFFFFFFF); // DNS
-                    writeEeprom(0x0014, 0xFFFFFFFF); // SN
-                    */
+                    resetAllTimers(); // Turn off all clocks
+                    writeEeprom(0x0010, 0xFFFFFFFF); // Erase DHCP Mode in EEPROM
                     setStaticNetworkAddresses(); // Update ifconfig
                     etherDisableDhcpMode();
                     putsUart0("  DHCP Mode Disabled\r\n");
