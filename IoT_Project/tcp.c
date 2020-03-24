@@ -12,8 +12,9 @@
 bool listenState = true;
 bool establishedState = false;
 bool closeState = false;
+uint32_t priorSequenceNumber = 0;
 
-//
+// Determines if Packet recieved is TCP
 bool etherIsTcp(uint8_t packet[])
 {
     bool ok = false;
@@ -30,32 +31,60 @@ bool etherIsTcp(uint8_t packet[])
 }
 
 //
-uint8_t etherIsTcpMsgType(uint8_t packet[])
+bool checkForDuplicates(uint8_t packet[])
 {
-    uint8_t num = 0;
+    bool ok = false;
+    uint32_t tmp32;
 
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip       = (ipFrame*)&ether->data;
     ip->revSize       = 0x45; // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
     tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
 
-    if((htons(tcp->dataCtrlFields) & 0x002) == 0x002)       // SYN
+    tmp32 = htons32(tcp->seqNum);
+
+    if(priorSequenceNumber != tmp32)
+    {
+        ok = true;
+    }
+
+    return ok;
+}
+
+// Function to find TCP flags
+uint8_t etherIsTcpMsgType(uint8_t packet[])
+{
+    uint8_t num = 0;
+    uint16_t tmp16;
+
+    etherFrame* ether = (etherFrame*)packet;
+    ipFrame* ip       = (ipFrame*)&ether->data;
+    ip->revSize       = 0x45; // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
+
+    tmp16 = htons(tcp->dataCtrlFields);
+
+    if((tmp16 & 0xFFF) == 0x002)      // SYN
     {
         num = 1;
     }
-    else if((htons(tcp->dataCtrlFields) & 0x01F) == 0x010) // ACK
+    else if((tmp16 & 0xFFF) == 0x010) // ACK
     {
         num = 2;
     }
-    else if((htons(tcp->dataCtrlFields) & 0x008) == 0x008) // PSH
+    else if((tmp16 & 0xFFF) == 0x18) // PSH
     {
         num = 3;
     }
-    else if((htons(tcp->dataCtrlFields) & 0x011) == 0x011) // FIN+ACK
+    else if((tmp16 & 0xFFF) == 0x011) // FIN+ACK
     {
         num = 4;
         establishedState = false;
         closeState = true;
+    }
+    else if((tmp16 & 0xFFF) == 0x004)
+    {
+        num = 5;
     }
 
     return num;
@@ -100,66 +129,45 @@ void sendTcpMessage(uint8_t packet[], uint16_t flags)
     ip->ttl            = 30;              // Time-to-Live in seconds
     ip->protocol       = 6;               // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
 
+    tmp16 = tcp->destPort;
     tcp->destPort      = tcp->sourcePort; // Destination Port is
-    tcp->sourcePort    = htons(23);       // Port 23 is Telnet
+    tcp->sourcePort    = tmp16;
     tcp->checksum      = 0;               // Set checksum to zero before performing calculation
     tcp->urgentPointer = 0;               // Not used in this class
-    tcp->window        = htons(1);
+    tcp->window        = htons(1024);
+
+    tmp16 = htons(tcp->dataCtrlFields);
+    i = 0;
 
     // If SYN flag = 1, then this is the initial sequence #.
     // The sequence # of actual 1st data byte and the acknowledge #
     // in the corresponding ACK is acknowledge # = sequence # + 1.
-    if((htons(tcp->dataCtrlFields) & 0x002) == 0x002) // TCP SYN
+    if((tmp16 & 0xFFF) == 0x002) // TCP SYN
     {
         tmp32 = htons32(tcp->seqNum) + 1;
         tcp->ackNum = htons32(tmp32);
-        tcp->seqNum = 100;
-    }
-    else if((htons(tcp->dataCtrlFields) & 0x01F) == 0x010) // TCP ACK
-    {
-        if(establishedState) // If in established state and receive ACK
-        {
-            // Size of TCP Data should be ip->length - size of IP Header - size of TCP Header
-            tmp16 = (htons(ip->length) - ((ip->revSize & 0xF) * 4) - (((htons(tcp->dataCtrlFields) & 0xF000) * 4) >> 12));
+        tcp->seqNum = 0;
 
-            tmp32 = htons32(tcp->seqNum) + tmp16; //
-            tcp->seqNum = tcp->ackNum;
-            tcp->ackNum = htons32(tmp32);
-        }
+        tcp->data[i++] = 0x02; // Kind = 2, Maximum Segment Size
+        tcp->data[i++] = 0x04; // Length = 4
+        tcp->data[i++] = 0x04; // 1st byte of MSS
+        tcp->data[i++] = 0x00; // 2nd byte of MSS
     }
-    else if((htons(tcp->dataCtrlFields) & 0x011) == 0x011)
+    else if((tmp16 & 0xFFF) == 0x018) // TCP PSH+ACK
+    {
+        // Size of TCP Data should be ip->length - size of IP Header - size of TCP Header
+        tmp16 = (htons(ip->length) - ((ip->revSize & 0xF) * 4) - (((htons(tcp->dataCtrlFields) & 0xF000) * 4) >> 12));
+
+        tmp32 = htons32(tcp->seqNum) + tmp16;
+        tcp->seqNum = tcp->ackNum;
+        tcp->ackNum = htons32(tmp32);
+    }
+    else if((tmp16 & 0xFFF) == 0x011) // FIN+ACK
     {
         tmp32 = htons32(tcp->seqNum) + 1;
         tcp->seqNum = tcp->ackNum;
         tcp->ackNum = htons32(tmp32);
     }
-
-    i = 0;
-
-    /*
-    tcp->data[i++] = 0x02; // Kind = 2, Maximum Segment Size
-    tcp->data[i++] = 0x04; // Length = 4
-    tcp->data[i++] = 0x02; // 1st byte of MSS
-    tcp->data[i++] = 0x00; // 2nd byte of MSS
-
-    if(establishedState) // send data to TCP Client
-    {
-        tcp->data[i++] = 'T';
-        tcp->data[i++] = 'x';
-        tcp->data[i++] = ' ';
-        tcp->data[i++] = 't';
-        tcp->data[i++] = 'o';
-        tcp->data[i++] = ' ';
-        tcp->data[i++] = 'C';
-        tcp->data[i++] = 'l';
-        tcp->data[i++] = 'i';
-        tcp->data[i++] = 'e';
-        tcp->data[i++] = 'n';
-        tcp->data[i++] = 't';
-        tcp->data[i++] = '\r';
-        tcp->data[i++] = '\n';
-    }
-    */
 
     tcpSize = (sizeof(tcpFrame) + i); // Size of Options
 
@@ -209,14 +217,11 @@ void getTcpData(uint8_t packet[])
 
 
     // Output TCP Client Data to Terminal
+    putsUart0("  ");
     for(i = 0; i < tmp16; i++)
     {
         c = tcp->data[i];
         putcUart0(c);
     }
-
-    if((htons(tcp->dataCtrlFields) & 0x018) == 0x018)
-    {
-        putsUart0("\r\n");
-    }
+    putsUart0("\r\n");
 }

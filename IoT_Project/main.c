@@ -105,8 +105,11 @@ int main(void)
             // Handle rebind request. On power-up rebindRequest = true
             if(rebindRequest)
             {
-                sendDhcpMessage(data, 1); // Send DHCPDISCOVER
-                rebindRequest = false;
+                if(dhcpEnabled)
+                {
+                    sendDhcpMessage(data, 1); // Send DHCPDISCOVER
+                    rebindRequest = false;
+                }
             }
             // Handle release request
             if(releaseRequest)
@@ -114,8 +117,14 @@ int main(void)
                 sendDhcpReleaseMessage(data);
                 setStaticNetworkAddresses();
                 etherEnableDhcpMode();
-                releaseRequest = false;
+                releaseRequest = renewRequest = false;
+                rebindRequest = true; // Send DHCPDISOVER Message
             }
+        }
+        else if(rebindRequest) // Send DHCPINFORM Message
+        {
+            sendDhcpInformMessage(data);
+            rebindRequest = false;
         }
 
         // Packet processing
@@ -131,54 +140,12 @@ int main(void)
             // Get packet
              etherGetPacket(data, MAX_PACKET_SIZE);
 
-             // Handle ARP request or response
-             if (etherIsArpRequest(data))
-             {
-                 etherSendArpResponse(data);
-             }
-             else if(etherIsArpResponse(data))
-             {
-                 if(arpResponseRx)
-                 {
-                     // If ARP Response received before 2 second timer elapses
-                     // then send decline message, invalidate IP and use static IP,
-                     // wait at least 10 seconds and send another DHCP discover message.
-                     sendDhcpDeclineMessage(data);
-                     setStaticNetworkAddresses();
-                     etherEnableDhcpMode();            // Re-enable DHCP mode
-                     startOneShotTimer(waitTimer, 10); // Set 10 second "Wait" Timer before sending another DHCPDISCOVER Message
-                 }
-             }
-
              // Handle IP datagram
              if (etherIsIp(data))
              {
                  if (etherIsIpUnicast(data))
                  {
-                     // Handle ICMP ping request
-                     if (etherIsPingRequest(data))
-                     {
-                       etherSendPingResponse(data);
-                     }
-
-                     if(etherIsDhcp(data)) // Handles Unicast DHCP Messages
-                     {
-                         uint8_t type;
-
-                         type = dhcpOfferType(data);
-
-                         if(type == 2) // DHCPACK Rx
-                         {
-                             getDhcpAckInfo(data); // Get Information in DHCPACK Message
-                             //putsUart0("  Unicast DHCP Rx\r\n");
-                         }
-                         else if(type == 3) // DHCPNACK Rx
-                         {
-                             rebindRequest = true; // If DHCPNACK Rx then Tx DHCPDISCOVER message
-                             dhcpRequestType = 0;
-                         }
-                     }
-                     else if(etherIsTcp(data))
+                     if(etherIsTcp(data))
                      {
                          // Handle TCP messages here
                          // We are coding up at TCP Server for HTTP or Telnet
@@ -190,23 +157,22 @@ int main(void)
                          {
                              if(type == 1) // Response to Initial SYN
                              {
-                                 sendTcpMessage(data, 0x5012); // Send SYN+ACK
+                                 sendTcpMessage(data, 0x6012); // Tx SYN+ACK
                              }
                              else if(type == 2)
                              {
                                  listenState = false;
                                  establishedState = true;
-                                 putsUart0("  TCP Connection Established.\r\n");
-                             }
-                             else if(type == 3) // DHCPNACK Rx
-                             {
-
+                                 //putsUart0("  TCP Connection Established.\r\n");
                              }
                          }
                          else if(establishedState)
                          {
-                             getTcpData(data);
-                             sendTcpMessage(data, 0x5010); // Send ACK
+                             if(type == 3) // PSH+ACK Rx
+                             {
+                                 getTcpData(data);
+                                 sendTcpMessage(data, 0x5010); // Tx ACK
+                             }
                          }
                          else if(closeState)
                          {
@@ -217,14 +183,29 @@ int main(void)
                              }
                              else if(type == 4) // Connection Termination
                              {
-                                 // Send ACK (?)
                                  sendTcpMessage(data, 0x5011); // Send FIN+ACK
                              }
                          }
-                         else
+                     }
+                     else if(etherIsDhcp(data)) // Handles Unicast DHCP Messages
+                     {
+                         uint8_t type;
+
+                         type = dhcpOfferType(data);
+
+                         if(type == 2) // DHCPACK Rx
                          {
-                             putsUart0("  TCP Message NOT Recognized\r\n");
+                             getDhcpAckInfo(data); // Get Information in DHCPACK Message
                          }
+                         else if(type == 3) // DHCPNACK Rx
+                         {
+                             rebindRequest = true; // If DHCPNACK Rx then Tx DHCPDISCOVER message
+                             dhcpRequestType = 0;
+                         }
+                     }
+                     else if (etherIsPingRequest(data)) // Handle ICMP ping request
+                     {
+                       etherSendPingResponse(data);
                      }
                  }
                  else if(etherIsDhcp(data)) // Handles broadcast DHCP Messages
@@ -256,6 +237,25 @@ int main(void)
                      }
                  }
              }
+
+             // Handle ARP request or response
+             if (etherIsArpRequest(data))
+             {
+                 etherSendArpResponse(data);
+             }
+             else if(etherIsArpResponse(data))
+             {
+                 if(arpResponseRx)
+                 {
+                     // If ARP Response received before 2 second timer elapses
+                     // then send decline message, invalidate IP and use static IP,
+                     // wait at least 10 seconds and send another DHCP discover message.
+                     sendDhcpDeclineMessage(data);
+                     setStaticNetworkAddresses();
+                     etherEnableDhcpMode();            // Re-enable DHCP mode
+                     startOneShotTimer(waitTimer, 10); // Set 10 second "Wait" Timer before sending another DHCPDISCOVER Message
+                 }
+             }
         }
 
         if(userInput.endOfString && isCommand(&userInput, "dhcp", 2))
@@ -270,26 +270,20 @@ int main(void)
                 {
                     etherEnableDhcpMode();
                     writeEeprom(0x0010, (uint32_t)dhcpEnabled);
-                    putsUart0("  DHCP Mode Enabled\r\n");
-                }
-                else
-                {
-                    putsUart0("  DHCP Mode Currently Enabled\r\n");
+                    releaseRequest = true;
+                    dhcpRequestType = 0;
                 }
             }
             else if(strcmp(token, "off") == 0) // Disables DHCP mode and stores the mode persistently in EEPROM
             {
                 if(dhcpEnabled)
                 {
-                    resetAllTimers(); // Turn off all clocks
+                    resetAllTimers();                // Turn off all clocks
                     writeEeprom(0x0010, 0xFFFFFFFF); // Erase DHCP Mode in EEPROM
-                    setStaticNetworkAddresses(); // Update ifconfig
+                    sendDhcpReleaseMessage(data);
+                    setStaticNetworkAddresses();     // Update ifconfig
                     etherDisableDhcpMode();
-                    putsUart0("  DHCP Mode Disabled\r\n");
-                }
-                else
-                {
-                    putsUart0("  DHCP Mode Currently NOT Enabled\r\n");
+                    sendDhcpInformMessage(data);
                 }
             }
             else if(strcmp(token, "refresh") == 0) // Refresh Current IP address (if in DHCP mode)
@@ -302,20 +296,21 @@ int main(void)
                 }
                 else
                 {
-                    putsUart0("  DHCP Mode NOT Enabled.\r\n");
+                    // putsUart0("  DHCP Mode NOT Enabled.\r\n");
                 }
             }
             else if(strcmp(token, "release") == 0) // Release Current IP address (if in DHCP mode)
             {
                 if(dhcpEnabled)
                 {
+                    resetAllTimers();
                     releaseRequest = true;
                     renewRequest = rebindRequest = false;
                     dhcpRequestType = 0;
                 }
                 else
                 {
-                    putsUart0("  DHCP Mode NOT Enabled.\r\n");
+                    // putsUart0("  DHCP Mode NOT Enabled.\r\n");
                 }
             }
             resetUserInput(&userInput);

@@ -17,10 +17,12 @@
 #include <stdio.h>
 #include "tm4c123gh6pm.h"
 #include "ethernet.h"
+#include "timers.h"
 
 extern bool listenState;
 extern bool establishedState;
 extern bool closeState;
+extern uint32_t priorSequenceNumber;
 
 typedef struct _tcpFrame // 20 Bytes in Length
 {
@@ -39,5 +41,6 @@ bool etherIsTcp(uint8_t packet[]);
 uint8_t etherIsTcpMsgType(uint8_t packet[]);
 void sendTcpMessage(uint8_t packet[], uint16_t flags);
 void getTcpData(uint8_t packet[]);
+bool checkForDuplicates(uint8_t packet[]);
 
 #endif /* TCP_H_ */

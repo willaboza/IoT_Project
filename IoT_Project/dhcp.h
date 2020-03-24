@@ -52,5 +52,6 @@ uint8_t dhcpOfferType(uint8_t packet[]);
 void getDhcpAckInfo(uint8_t packet[]);
 void storeAddressEeprom(uint8_t add1, uint8_t add2, uint8_t add3, uint8_t add4, uint16_t block);
 void eraseAddressEeprom();
+void sendDhcpInformMessage(uint8_t packet[]);
 
 #endif /* DHCP_H_ */

@@ -22,8 +22,6 @@ extern bool renewRequest;
 extern bool rebindRequest;
 extern bool releaseRequest;
 extern bool arpResponseRx;
-extern bool dhcpAckRx;
-extern bool dhcpNackRx;
 extern uint32_t leaseTime;
 extern uint8_t dhcpRequestType;
 
