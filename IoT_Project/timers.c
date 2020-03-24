@@ -190,6 +190,8 @@ void rebindTimer()
 {
     stopTimer(rebindTimer);
     renewRequest = true;
+    rebindRequest = false;
+    releaseRequest = false;
     dhcpRequestType = 3; // DHCPREQUEST Type 3 is reserved for REBINDING
     //putsUart0("  T2 Expired\r\n");
 }

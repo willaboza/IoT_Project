@@ -271,7 +271,7 @@ int main(void)
                     etherEnableDhcpMode();
                     writeEeprom(0x0010, (uint32_t)dhcpEnabled);
                     releaseRequest = true;
-                    dhcpRequestType = 0;
+                    //dhcpRequestType = 0;
                 }
             }
             else if(strcmp(token, "off") == 0) // Disables DHCP mode and stores the mode persistently in EEPROM
@@ -307,10 +307,6 @@ int main(void)
                     releaseRequest = true;
                     renewRequest = rebindRequest = false;
                     dhcpRequestType = 0;
-                }
-                else
-                {
-                    // putsUart0("  DHCP Mode NOT Enabled.\r\n");
                 }
             }
             resetUserInput(&userInput);

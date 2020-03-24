@@ -371,7 +371,8 @@ void sendDhcpRequestMessage(uint8_t packet[])
     else
     {   for(i = 0; i < HW_ADD_LENGTH; i++)
         {
-            ether->destAddress[i]   = serverMacAddress[i];
+            ether->destAddress[i]   = 0xFF;
+            //ether->destAddress[i]   = serverMacAddress[i];
             ether->sourceAddress[i] = macAddress[i];
         }
         dhcp->flags = htons(0x0000); // 0x0000 to Unicast
@@ -801,7 +802,7 @@ void getDhcpAckInfo(uint8_t packet[])
     udpFrame *udp     = (udpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
     dhcpFrame *dhcp   = (dhcpFrame*)&udp->data;
 
-    if(dhcpEnabled)
+    if(dhcpEnabled && dhcpRequestType != 2)
     {
         etherSetIpAddress(dhcp->yiaddr[0], dhcp->yiaddr[1], dhcp->yiaddr[2], dhcp->yiaddr[3]); // Set IP provided by server
     }

@@ -18,7 +18,7 @@
 #include "timers.h"
 #include "ethernet.h"
 
-#define LEASE_TIME_DIVISOR 1
+#define LEASE_TIME_DIVISOR 750
 
 extern uint32_t transactionId;
 
