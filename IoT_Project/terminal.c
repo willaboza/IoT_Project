@@ -165,6 +165,11 @@ void printMainMenu()
     putsUart0("  dhcp ON|OFF|REFRESH|RELEASE\r\n");
     putsUart0("  set IP|GW|DNS|SN w.x.y.z\r\n");
     putsUart0("  ifconfig\r\n");
+    putsUart0("  set MQTT w.x.y.z\r\n");
+    putsUart0("  publish TOPIC DATA\r\n");
+    putsUart0("  subscribe TOPIC\r\n");
+    putsUart0("  unsubscribe TOPIC\r\n");
+    putsUart0("  connect\r\n");
+    putsUart0("  disconnect\r\n");
     putsUart0("  reboot\r\n");
-//    putsUart0("\r\n");
 }

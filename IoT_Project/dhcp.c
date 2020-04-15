@@ -14,6 +14,8 @@ uint32_t transactionId = 0;
 // Function to determine if DHCP mode ENABLED or DISABLED
 void readDeviceConfig()
 {
+    uint32_t mqtt = 0;
+
     if(readEeprom(0x0010) != 0xFFFFFFFF)
     {
         dhcpRequestType = 0;  // Broadcast DHCPREQUEST as no
@@ -71,6 +73,14 @@ void readDeviceConfig()
         putsUart0("Starting eth0\r\n");
         displayConnectionInfo();
         putsUart0("\r\n");
+    }
+
+    if((mqtt = readEeprom(0x0014)) != 0xFFFFFFFF)
+    {
+        ipMqttAddress[0] = (num >> 24);
+        ipMqttAddress[1] = (num >> 16);
+        ipMqttAddress[2] = (num >> 8);
+        ipMqttAddress[3] = num;
     }
 }
 

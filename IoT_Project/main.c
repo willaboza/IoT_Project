@@ -27,6 +27,7 @@
 #include "tcp.h"
 #include "reboot.h"
 #include "wait.h"
+#include "mqtt.h"
 
 // Pins
 #define RED_LED PORTF,     1
@@ -138,7 +139,7 @@ int main(void)
             }
 
             // Get packet
-             etherGetPacket(data, MAX_PACKET_SIZE);
+            etherGetPacket(data, MAX_PACKET_SIZE);
 
              // Handle IP datagram
              if (etherIsIp(data))
@@ -271,7 +272,6 @@ int main(void)
                     etherEnableDhcpMode();
                     writeEeprom(0x0010, (uint32_t)dhcpEnabled);
                     releaseRequest = true;
-                    //dhcpRequestType = 0;
                 }
             }
             else if(strcmp(token, "off") == 0) // Disables DHCP mode and stores the mode persistently in EEPROM
@@ -293,10 +293,6 @@ int main(void)
                     renewRequest = true;
                     rebindRequest = releaseRequest = false;
                     dhcpRequestType = 2;
-                }
-                else
-                {
-                    // putsUart0("  DHCP Mode NOT Enabled.\r\n");
                 }
             }
             else if(strcmp(token, "release") == 0) // Release Current IP address (if in DHCP mode)
@@ -329,25 +325,26 @@ int main(void)
             {
                 etherSetIpAddress(add1, add2, add3, add4);
                 storeAddressEeprom(add1, add2, add3, add4, 0x0011);
-                //putsUart0("  IP Set\r\n");
             }
             else if(strcmp(token, "gw") == 0) // Set Gateway address
             {
                 etherSetIpGatewayAddress(add1, add2, add3, add4);
                 storeAddressEeprom(add1, add2, add3, add4, 0x0012);
-                //putsUart0("  GW Set.\r\n");
             }
             else if(strcmp(token, "dns") == 0) // Set Domain Name System address
             {
                 setDnsAddress(add1, add2, add3, add4);
                 storeAddressEeprom(add1, add2, add3, add4, 0x0013);
-                //putsUart0("  DNS Set\r\n");
             }
             else if(strcmp(token, "sn") == 0) // Set Sub-net Mask
             {
                 etherSetIpSubnetMask(add1, add2, add3, add4);
                 storeAddressEeprom(add1, add2, add3, add4, 0x0014);
-                //putsUart0("  SN Set\r\n");
+            }
+            else if(strcmp(token, "MQTT") == 0) // Set Sub-net Mask
+            {
+                setMqttAddress(add1, add2, add3, add4);
+                storeAddressEeprom(add1, add2, add3, add4, 0x0015);
             }
             resetUserInput(&userInput);
         }
@@ -356,6 +353,40 @@ int main(void)
             userInput.fieldCount = 0;
             displayIfconfigInfo(); // displays current MAC, IP, GW, SN, DNS, and DHCP mode
             resetUserInput(&userInput);
+        }
+        else if(userInput.endOfString && isCommand(&userInput, "set", 6))
+        {
+            char token[MAX_CHARS + 1];
+            uint8_t add1, add2, add3, add4;
+
+            // Retrieve network configuration parameter
+            strcpy(token,getFieldString(&userInput, 1));
+
+            // Get Network Address
+            add1 = getFieldInteger(&userInput, 2);
+            add2 = getFieldInteger(&userInput, 3);
+            add3 = getFieldInteger(&userInput, 4);
+            add4 = getFieldInteger(&userInput, 5);
+        }
+        else if(userInput.endOfString && isCommand(&userInput, "publish", 3))
+        {
+
+        }
+        else if(userInput.endOfString && isCommand(&userInput, "subscribe", 2))
+        {
+
+        }
+        else if(userInput.endOfString && isCommand(&userInput, "unsubscribe", 2))
+        {
+
+        }
+        else if(userInput.endOfString && isCommand(&userInput, "connect", 1))
+        {
+
+        }
+        else if(userInput.endOfString && isCommand(&userInput, "disconnect", 1))
+        {
+
         }
         else if(userInput.endOfString && isCommand(&userInput, "reboot", 1))
         {
