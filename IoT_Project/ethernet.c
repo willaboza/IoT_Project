@@ -822,63 +822,63 @@ void displayConnectionInfo()
 
     // Retrieve Mac Address
     etherGetMacAddress(mac);
-    putsUart0("  HW: ");
+    sendUart0String("  HW: ");
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
         sprintf(str, "%02u", mac[i]);
-        putsUart0(str);
+        sendUart0String(str);
         if (i < (HW_ADD_LENGTH - 1))
-            putcUart0(':');
+            sendUart0String(":");
     }
-    putsUart0("\r\n");
+    sendUart0String("\r\n");
 
     // Retrieve IP Address
     etherGetIpAddress(ip);
-    putsUart0("  IP: ");
+    sendUart0String("  IP: ");
     for (i = 0; i < 4; i++)
     {
         sprintf(str, "%u", ip[i]);
-        putsUart0(str);
+        sendUart0String(str);
         if (i < 4-1)
-            putcUart0('.');
+            sendUart0String(".");
     }
 
     // Check if DHCP Mode is Enabled
     if (etherIsDhcpEnabled())
-        putsUart0(" (dhcp)");
+        sendUart0String(" (dhcp)");
     else
-        putsUart0(" (static)");
-    putsUart0("\r\n");
+        sendUart0String(" (static)");
+    sendUart0String("\r\n");
 
     // Retrieve IP Subnet Mask
     etherGetIpSubnetMask(ip);
-    putsUart0("  SN: ");
+    sendUart0String("  SN: ");
     for (i = 0; i < 4; i++)
     {
         sprintf(str, "%u", ip[i]);
-        putsUart0(str);
+        sendUart0String(str);
         if (i < 4-1)
-            putcUart0('.');
+            sendUart0String(".");
     }
-    putsUart0("\r\n");
+    sendUart0String("\r\n");
 
     // Retrieve IP Gateway Address
     etherGetIpGatewayAddress(ip);
-    putsUart0("  GW: ");
+    sendUart0String("  GW: ");
     for (i = 0; i < 4; i++)
     {
         sprintf(str, "%u", ip[i]);
-        putsUart0(str);
+        sendUart0String(str);
         if (i < 4-1)
-            putcUart0('.');
+            sendUart0String(".");
     }
-    putsUart0("\r\n");
+    sendUart0String("\r\n");
 
     // Check if Ethernet Link is UP|DOWN
     if (etherIsLinkUp())
-        putsUart0("  Link is up\r\n");
+        sendUart0String("  Link is up\r\n");
     else
-        putsUart0("  Link is down\r\n");
+        sendUart0String("  Link is down\r\n");
 }
 
 
@@ -892,69 +892,69 @@ void displayIfconfigInfo()
 
     // Retrieve Mac Address
     etherGetMacAddress(mac);
-    putsUart0("  MAC: ");
+    sendUart0String("  MAC: ");
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
         sprintf(str, "%02u", mac[i]);
-        putsUart0(str);
+        sendUart0String(str);
         if (i < (HW_ADD_LENGTH - 1))
-            putcUart0(':');
+            sendUart0String(":");
     }
-    putsUart0("\r\n");
+    sendUart0String("\r\n");
 
     // Retrieve IP Address
     etherGetIpAddress(ip);
-    putsUart0("  IP:  ");
+    sendUart0String("  IP:  ");
     for (i = 0; i < 4; i++)
     {
         sprintf(str, "%u", ip[i]);
-        putsUart0(str);
+        sendUart0String(str);
         if (i < 4-1)
-            putcUart0('.');
+            sendUart0String(".");
     }
 
     // Check if DHCP Mode is Enabled
     if (etherIsDhcpEnabled())
-        putsUart0(" (dhcp)");
+        sendUart0String(" (dhcp)");
     else
-        putsUart0(" (static)");
-    putsUart0("\r\n");
+        sendUart0String(" (static)");
+    sendUart0String("\r\n");
 
     // Retrieve IP Subnet Mask
     etherGetIpSubnetMask(ip);
-    putsUart0("  SN:  ");
+    sendUart0String("  SN:  ");
     for (i = 0; i < 4; i++)
     {
         sprintf(str, "%u", ip[i]);
-        putsUart0(str);
+        sendUart0String(str);
         if (i < 4-1)
-            putcUart0('.');
+            sendUart0String(".");
     }
-    putsUart0("\r\n");
+    sendUart0String("\r\n");
 
     // Retrieve IP Gateway Address
     etherGetIpGatewayAddress(ip);
-    putsUart0("  GW:  ");
+    sendUart0String("  GW:  ");
     for (i = 0; i < 4; i++)
     {
         sprintf(str, "%u", ip[i]);
-        putsUart0(str);
+        sendUart0String(str);
         if (i < 4-1)
-            putcUart0('.');
+            sendUart0String(".");
     }
-    putsUart0("\r\n");
+    sendUart0String("\r\n");
 
     // Retrieve IP Gateway Address
     getDnsAddress(ip);
-    putsUart0("  DNS: ");
+    sendUart0String("  DNS: ");
     for (i = 0; i < 4; i++)
     {
         sprintf(str, "%u", ip[i]);
-        putsUart0(str);
+        sendUart0String(str);
         if (i < 4-1)
-            putcUart0('.');
+            sendUart0String(".");
     }
-    putsUart0("\r\n");
+    sendUart0String("\r\n");
 }
 
 // Init Ethernet Interface
@@ -970,7 +970,7 @@ void initEthernetInterface()
     waitMicrosecond(100000);
 }
 
-//
+// Function sets Network Addresses back to their static values
 void setStaticNetworkAddresses()
 {
     // etherSetMacAddress(2, 3, 4, 5, 6, UNIQUE_ID);

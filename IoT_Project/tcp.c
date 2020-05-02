@@ -12,7 +12,8 @@
 bool listenState = true;
 bool establishedState = false;
 bool closeState = false;
-uint32_t priorSequenceNumber = 0;
+uint32_t prevSeqNum = 0;
+uint32_t prevAckNum = 0;
 
 // Determines if Packet recieved is TCP
 bool etherIsTcp(uint8_t packet[])
@@ -43,7 +44,7 @@ bool checkForDuplicates(uint8_t packet[])
 
     tmp32 = htons32(tcp->seqNum);
 
-    if(priorSequenceNumber != tmp32)
+    if(prevSeqNum != tmp32)
     {
         ok = true;
     }
@@ -82,9 +83,13 @@ uint8_t etherIsTcpMsgType(uint8_t packet[])
         establishedState = false;
         closeState = true;
     }
-    else if((tmp16 & 0xFFF) == 0x004)
+    else if((tmp16 & 0xFFF) == 0x004) // RST
     {
         num = 5;
+    }
+    else if((tmp16 & 0xFFF) == 0x012) // SYN+ACK
+    {
+        num = 6;
     }
 
     return num;
@@ -94,7 +99,7 @@ uint8_t etherIsTcpMsgType(uint8_t packet[])
 void sendTcpMessage(uint8_t packet[], uint16_t flags)
 {
     uint8_t tmp8 = 0, i = 0;
-    uint16_t tcpSize = 0, tmp16 = 0;
+    uint16_t tcpSize = 0, tmp16 = 0, tmpSrcPrt;
     uint32_t tmp32 = 0;
 
     etherFrame* ether = (etherFrame*)packet;
@@ -105,10 +110,8 @@ void sendTcpMessage(uint8_t packet[], uint16_t flags)
     // Fill etherFrame
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
-        // tmp8 = ether->destAddress[i];
-        // ether->destAddress[i] = ether->sourceAddress[i];
-        ether->destAddress[i] = 0xFF;
-        ether->sourceAddress[i] = ipAddress[i];
+        ether->destAddress[i]   = 0xFF;
+        ether->sourceAddress[i] = macAddress[i];
     }
 
     ether->frameType = htons(0x0800); // For ipv4
@@ -125,12 +128,13 @@ void sendTcpMessage(uint8_t packet[], uint16_t flags)
     ip->headerChecksum = 0;
     ip->typeOfService  = 0;
     ip->id             = htons(1);
-    ip->flagsAndOffset = htons(0x4000);          // Don't Fragment Flag Set
+    ip->flagsAndOffset = htons(0x4000);   // Don't Fragment Flag Set
     ip->ttl            = 30;              // Time-to-Live in seconds
     ip->protocol       = 6;               // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
 
+    tmpSrcPrt = tcp->sourcePort;
     tmp16 = tcp->destPort;
-    tcp->destPort      = tcp->sourcePort; // Destination Port is
+    tcp->destPort      = tmpSrcPrt; // Destination Port is
     tcp->sourcePort    = tmp16;
     tcp->checksum      = 0;               // Set checksum to zero before performing calculation
     tcp->urgentPointer = 0;               // Not used in this class
@@ -153,6 +157,12 @@ void sendTcpMessage(uint8_t packet[], uint16_t flags)
         tcp->data[i++] = 0x04; // 1st byte of MSS
         tcp->data[i++] = 0x00; // 2nd byte of MSS
     }
+    else if((tmp16 & 0xFFF) == 0x012) // TCP SYN+ACK
+    {
+        tmp32 = htons32(tcp->seqNum) + 1;
+        tcp->seqNum = tcp->ackNum;
+        tcp->ackNum = htons32(tmp32);
+    }
     else if((tmp16 & 0xFFF) == 0x018) // TCP PSH+ACK
     {
         // Size of TCP Data should be ip->length - size of IP Header - size of TCP Header
@@ -169,6 +179,9 @@ void sendTcpMessage(uint8_t packet[], uint16_t flags)
         tcp->ackNum = htons32(tmp32);
     }
 
+    prevSeqNum = tcp->seqNum;
+    prevAckNum = tcp->ackNum;
+
     tcpSize = (sizeof(tcpFrame) + i); // Size of Options
 
     tcp->dataCtrlFields = htons(flags);
@@ -178,7 +191,7 @@ void sendTcpMessage(uint8_t packet[], uint16_t flags)
     etherCalcIpChecksum(ip);
 
     // Size of TCP Data should be ip->length - size of IP Header - size of TCP Header
-    tmp16 = (htons(ip->length) - ((ip->revSize & 0xF) * 4) - (((htons(tcp->dataCtrlFields) & 0xF000) * 4) >> 12));
+    // tmp16 = (htons(ip->length) - ((ip->revSize & 0xF) * 4) - (((htons(tcp->dataCtrlFields) & 0xF000) * 4) >> 12));
 
     // 32-bit sum over pseudo-header
     // TCP pseudo-header includes 4 byte source address from IP header,
@@ -217,11 +230,7 @@ void getTcpData(uint8_t packet[])
 
 
     // Output TCP Client Data to Terminal
-    putsUart0("  ");
-    for(i = 0; i < tmp16; i++)
-    {
-        c = tcp->data[i];
-        putcUart0(c);
-    }
-    putsUart0("\r\n");
+    sendUart0String("  ");
+    sendUart0String(tcp->data[0]);
+    sendUart0String("\r\n");
 }

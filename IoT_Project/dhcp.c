@@ -25,9 +25,9 @@ void readDeviceConfig()
         initEthernetInterface();
         etherEnableDhcpMode();
 
-        putsUart0("Starting eth0\r\n");
+        sendUart0String("Starting eth0\r\n");
         displayConnectionInfo();
-        putsUart0("\r\n");
+        sendUart0String("\r\n");
     }
     else
     {
@@ -70,17 +70,17 @@ void readDeviceConfig()
 
         dhcpRequestType = 0;
         rebindRequest = true;
-        putsUart0("Starting eth0\r\n");
+        sendUart0String("Starting eth0\r\n");
         displayConnectionInfo();
-        putsUart0("\r\n");
+        sendUart0String("\r\n");
     }
 
     if((mqtt = readEeprom(0x0014)) != 0xFFFFFFFF)
     {
-        ipMqttAddress[0] = (num >> 24);
-        ipMqttAddress[1] = (num >> 16);
-        ipMqttAddress[2] = (num >> 8);
-        ipMqttAddress[3] = num;
+        ipMqttAddress[0] = (mqtt >> 24);
+        ipMqttAddress[1] = (mqtt >> 16);
+        ipMqttAddress[2] = (mqtt >> 8);
+        ipMqttAddress[3] = mqtt;
     }
 }
 
@@ -226,13 +226,7 @@ void sendDhcpMessage(uint8_t packet[], uint8_t type)
     udp->check = getEtherChecksum();
 
     // send packet with size = ether + udp header + ip header + udp_size + dchp header + options
-    if(etherPutPacket((uint8_t *)ether, 14 + ((ip->revSize & 0xF) * 4) + 8 + dhcpSize))
-    {
-        if(type == 1)
-        {
-            // putsUart0("  Tx DHCPDISCOVER\r\n");
-        }
-    }
+    etherPutPacket((uint8_t *)ether, 14 + ((ip->revSize & 0xF) * 4) + 8 + dhcpSize);
 }
 
 // Send DHCPINFORM Message

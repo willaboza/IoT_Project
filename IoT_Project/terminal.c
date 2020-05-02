@@ -16,6 +16,7 @@ void getsUart0(USER_DATA* data)
     count = data->characterCount;
 
     c = getcUart0();
+    UART0_ICR_R = 0xFFF; // Clear any interrupts
     if((c == 13) || (count == MAX_CHARS))
     {
         data->buffer[count++] = '\0';
@@ -161,15 +162,15 @@ void resetUserInput(USER_DATA* data)
 // Function to Print Main Menu
 void printMainMenu()
 {
-    putsUart0("Commands:\r\n");
-    putsUart0("  dhcp ON|OFF|REFRESH|RELEASE\r\n");
-    putsUart0("  set IP|GW|DNS|SN w.x.y.z\r\n");
-    putsUart0("  ifconfig\r\n");
-    putsUart0("  set MQTT w.x.y.z\r\n");
-    putsUart0("  publish TOPIC DATA\r\n");
-    putsUart0("  subscribe TOPIC\r\n");
-    putsUart0("  unsubscribe TOPIC\r\n");
-    putsUart0("  connect\r\n");
-    putsUart0("  disconnect\r\n");
-    putsUart0("  reboot\r\n");
+    sendUart0String("Commands:\r\n");
+    sendUart0String("  dhcp ON|OFF|REFRESH|RELEASE\r\n");
+    sendUart0String("  set IP|GW|DNS|SN w.x.y.z\r\n");
+    sendUart0String("  ifconfig\r\n");
+    sendUart0String("  set MQTT w.x.y.z\r\n");
+    sendUart0String("  publish TOPIC DATA\r\n");
+    sendUart0String("  subscribe TOPIC\r\n");
+    sendUart0String("  unsubscribe TOPIC\r\n");
+    sendUart0String("  connect\r\n");
+    sendUart0String("  disconnect\r\n");
+    sendUart0String("  reboot\r\n");
 }

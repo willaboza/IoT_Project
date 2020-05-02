@@ -59,7 +59,7 @@ int main(void)
     initUart0();
     initEeprom();
     initTimer();
-    initWatchdog();
+//    initWatchdog();
 
     // Declare Variables
     USER_DATA userInput;
@@ -68,7 +68,7 @@ int main(void)
     // Setup UART0 Baud Rate
     setUart0BaudRate(115200, 40e6);
 
-    putsUart0("\r\n");
+    sendUart0String("\r\n");
     readDeviceConfig();
 
     // Flash LED
@@ -76,6 +76,8 @@ int main(void)
     waitMicrosecond(100000);
     setPinValue(GREEN_LED, 0);
     waitMicrosecond(100000);
+
+    srand(106);
 
     // Set Variables for User Input to Initial Condition
     resetUserInput(&userInput);
@@ -160,22 +162,37 @@ int main(void)
                              {
                                  sendTcpMessage(data, 0x6012); // Tx SYN+ACK
                              }
-                             else if(type == 2)
+                             else if(type == 6) // Tx ACK if SYN+ACK Rx'd
+                             {
+                                 sendTcpMessage(data, 0x5010); // Tx ACK
+                                 mqttConnectMessage(data, 0x5018);       // MQTT Connect
+                                 listenState = false;
+                                 establishedState = true;
+                             }
+                             else if(type == 2) // Transition to established state
                              {
                                  listenState = false;
                                  establishedState = true;
-                                 //putsUart0("  TCP Connection Established.\r\n");
                              }
                          }
-                         else if(establishedState)
+                         else if(establishedState) // Enter TCP Established State
                          {
-                             if(type == 3) // PSH+ACK Rx
+                             bool mqtt = false;
+
+                             mqtt = etherIsMqttRequest(data);
+
+                             if(type == 3 && !mqtt) // PSH+ACK Rx
                              {
                                  getTcpData(data);
                                  sendTcpMessage(data, 0x5010); // Tx ACK
                              }
+                             else if(mqtt)
+                             {
+                                 getTcpData(data);
+                                 sendTcpMessage(data, 0x5018); // Tx PSH+ACK
+                             }
                          }
-                         else if(closeState)
+                         else if(closeState) // Enter TCP Close State
                          {
                              if(type == 2)
                              {
@@ -382,16 +399,20 @@ int main(void)
         }
         else if(userInput.endOfString && isCommand(&userInput, "connect", 1))
         {
-
+            sendMqttTcpSyn(data, 0x6002);
+            resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "disconnect", 1))
         {
-
+            mqttDisconnectMessage(data, 0x5018);
+            establishedState = false;
+            closeState = true;
+            resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "reboot", 1))
         {
             while (EEPROM_EEDONE_R & EEPROM_EEDONE_WORKING); // Ensure no Read or Writes to EEPROM are occuring
-            putsUart0("Rebooting System...\r\n");
+            sendUart0String("Rebooting System...\r\n");
             rebootFlag = true;
             resetUserInput(&userInput);
         }

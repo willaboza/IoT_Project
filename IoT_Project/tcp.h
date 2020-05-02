@@ -18,11 +18,13 @@
 #include "tm4c123gh6pm.h"
 #include "ethernet.h"
 #include "timers.h"
+#include "mqtt.h"
 
 extern bool listenState;
 extern bool establishedState;
 extern bool closeState;
-extern uint32_t priorSequenceNumber;
+extern uint32_t prevSeqNum;
+extern uint32_t prevAckNum;
 
 typedef struct _tcpFrame // 20 Bytes in Length
 {
