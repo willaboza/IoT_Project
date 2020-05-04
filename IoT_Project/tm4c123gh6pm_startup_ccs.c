@@ -58,6 +58,7 @@ extern uint32_t __STACK_TOP;
 extern void tickIsr(void);
 extern void watchdogIsr(void);
 extern void uart0Isr(void);
+extern void rtcIsr(void);
 
 //*****************************************************************************
 //
@@ -129,7 +130,7 @@ void (* const g_pfnVectors[])(void) =
     IntDefaultHandler,                      // CAN1
     0,                                      // Reserved
     0,                                      // Reserved
-    IntDefaultHandler,                      // Hibernate
+    rtcIsr,                                 // Hibernate
     IntDefaultHandler,                      // USB0
     IntDefaultHandler,                      // PWM Generator 3
     IntDefaultHandler,                      // uDMA Software Transfer

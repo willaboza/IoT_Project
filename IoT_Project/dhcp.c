@@ -10,6 +10,7 @@
 #include "dhcp.h"
 
 uint32_t transactionId = 0;
+bool dhcpIpLeased = false;
 
 // Function to determine if DHCP mode ENABLED or DISABLED
 void readDeviceConfig()
@@ -75,12 +76,14 @@ void readDeviceConfig()
         sendUart0String("\r\n");
     }
 
-    if((mqtt = readEeprom(0x0014)) != 0xFFFFFFFF)
+    if((mqtt = readEeprom(0x0015)) != 0xFFFFFFFF)
     {
         ipMqttAddress[0] = (mqtt >> 24);
         ipMqttAddress[1] = (mqtt >> 16);
         ipMqttAddress[2] = (mqtt >> 8);
         ipMqttAddress[3] = mqtt;
+
+        sendMqttConnect = true;
     }
 }
 
@@ -806,6 +809,8 @@ void getDhcpAckInfo(uint8_t packet[])
     udpFrame *udp     = (udpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
     dhcpFrame *dhcp   = (dhcpFrame*)&udp->data;
 
+    dhcpIpLeased = true;
+
     if(dhcpEnabled && dhcpRequestType != 2)
     {
         etherSetIpAddress(dhcp->yiaddr[0], dhcp->yiaddr[1], dhcp->yiaddr[2], dhcp->yiaddr[3]); // Set IP provided by server
@@ -921,24 +926,20 @@ uint8_t dhcpOfferType(uint8_t packet[])
                 {
                     type = 0x01;
                     dhcpRequestType = 0;
-                    // putsUart0("  Rx DHCPOFFER\r\n");
                 }
                 //dhcpRequestType = 0;
-                //putsUart0("  Rx DHCPOFFER\r\n");
             }
             else if(dhcp->options[i] == 0x05)
             {
                 if(dhcp->xid == transactionId)
                 {
                     type = 0x02;
-                    // putsUart0("  Rx DHCPACK\r\n");
                 }
             }
             else if(dhcp->options[i] == 0x06)
             {
                 type = 0x03;
                 resetAllTimers();
-                // putsUart0("  Rx DHCPNACK\r\n");
             }
         }
         else if(dhcp->options[i] == 0x33) // Option 51, Lease Time

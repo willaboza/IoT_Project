@@ -26,6 +26,7 @@ bool rebindRequest  = true;
 bool releaseRequest = false;
 uint32_t leaseTime  = 0;
 bool arpResponseRx  = false;
+bool sendMqttPing = false;
 
 bool reload[NUM_TIMERS]     = {0};
 uint32_t period[NUM_TIMERS] = {0};
@@ -146,7 +147,6 @@ void resetAllTimers()
         fn[i]     = 0;
         reload[i] = false;
     }
-    //putsUart0("  All Timers Reset\r\n");
 }
 
 // Function to handle Timer Interrupts
@@ -166,6 +166,7 @@ void tickIsr()
             }
         }
     }
+
     TIMER4_ICR_R = TIMER_ICR_TATOCINT;
 }
 
@@ -182,7 +183,6 @@ void renewalTimer()
     rebindRequest = false;
     releaseRequest = false;
     dhcpRequestType = 2; // DHCPREQUEST Type 2 is reserved for RENEWING
-    //putsUart0("  T1 Expired\r\n");
 }
 
 // Timer 2
@@ -193,7 +193,6 @@ void rebindTimer()
     rebindRequest = false;
     releaseRequest = false;
     dhcpRequestType = 3; // DHCPREQUEST Type 3 is reserved for REBINDING
-    //putsUart0("  T2 Expired\r\n");
 }
 
 // 2-Second Timer to wait for any A
@@ -201,7 +200,6 @@ void arpResponseTimer()
 {
     stopTimer(arpResponseTimer);
     arpResponseRx = false;
-    //putsUart0("  ARP Timer Expired\r\n");
 }
 
 // DHCP "WAIT" TIMER
@@ -210,6 +208,10 @@ void waitTimer()
     stopTimer(waitTimer);
     rebindRequest = true;
     renewRequest = releaseRequest = arpResponseRx = false;
-    //putsUart0("  10 s WAIT Timer Expired\r\n");
 }
 
+void mqttPing()
+{
+    sendMqttPing = true;
+    stopTimer(mqttPing);
+}

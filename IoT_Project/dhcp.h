@@ -22,6 +22,7 @@
 #define LEASE_TIME_DIVISOR 1
 
 extern uint32_t transactionId;
+extern bool dhcpIpLeased;
 
 typedef struct _dhcpFrame
 {

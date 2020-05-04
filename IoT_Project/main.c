@@ -28,6 +28,8 @@
 #include "reboot.h"
 #include "wait.h"
 #include "mqtt.h"
+#include "rtc.h"
+#include "adc.h"
 
 // Pins
 #define RED_LED PORTF,     1
@@ -59,11 +61,15 @@ int main(void)
     initUart0();
     initEeprom();
     initTimer();
+//    initAdc();
+//    initRtc();
 //    initWatchdog();
 
     // Declare Variables
     USER_DATA userInput;
-    uint8_t   data[MAX_PACKET_SIZE];
+    USER_DATA topic;
+    USER_DATA payload;
+    uint8_t data[MAX_PACKET_SIZE];
 
     // Setup UART0 Baud Rate
     setUart0BaudRate(115200, 40e6);
@@ -76,8 +82,6 @@ int main(void)
     waitMicrosecond(100000);
     setPinValue(GREEN_LED, 0);
     waitMicrosecond(100000);
-
-    srand(106);
 
     // Set Variables for User Input to Initial Condition
     resetUserInput(&userInput);
@@ -121,6 +125,7 @@ int main(void)
                 setStaticNetworkAddresses();
                 etherEnableDhcpMode();
                 releaseRequest = renewRequest = false;
+                dhcpIpLeased = false;
                 rebindRequest = true; // Send DHCPDISOVER Message
             }
         }
@@ -154,6 +159,13 @@ int main(void)
                          // We are coding up at TCP Server for HTTP or Telnet
                          uint8_t type;
 
+                         if(mqttMessage(data))
+                         {
+                             processMqttMessage(data, &topic, &payload);
+                             parseFields(&topic);
+                             parseFields(&payload);
+                         }
+
                          type = etherIsTcpMsgType(data);
 
                          if(listenState)
@@ -177,23 +189,20 @@ int main(void)
                          }
                          else if(establishedState) // Enter TCP Established State
                          {
-                             bool mqtt = false;
-
-                             mqtt = etherIsMqttRequest(data);
-
-                             if(type == 3 && !mqtt) // PSH+ACK Rx
+                             if(type == 3) // PSH+ACK Rx
                              {
-                                 getTcpData(data);
                                  sendTcpMessage(data, 0x5010); // Tx ACK
+                                 startOneShotTimer(mqttPing, (KEEP_ALIVE_TIME - 5)); // Keep Alive Timer for Ping Request
                              }
-                             else if(mqtt)
+                             else if(type == 2) // ACK Rx
                              {
-                                 getTcpData(data);
-                                 sendTcpMessage(data, 0x5018); // Tx PSH+ACK
+                                 tcpAckReceived(data);
                              }
                          }
                          else if(closeState) // Enter TCP Close State
                          {
+                             stopTimer(mqttPing); // Stop MQTT PING Timer
+
                              if(type == 2)
                              {
                                  closeState = false;
@@ -276,13 +285,42 @@ int main(void)
              }
         }
 
+        /* Handle Sending of MQTT Packets Here */
+        if(sendMqttPing) // Send Ping Request
+        {
+            mqttPingRequest(data, 0x5018);
+            sendMqttPing = false;
+            startOneShotTimer(mqttPing, (KEEP_ALIVE_TIME - 5));
+        }
+        else if(sendMqttConnect && dhcpEnabled && dhcpIpLeased) // Wait until DHCP finished before sending connect msg
+        {
+            sendTcpSyn(data, 0x6002, 1883);
+            sendMqttConnect = false;
+        }
+        else if(sendMqttConnect && !(dhcpEnabled)) // If DHCP Mode not enabled can send connect msg right away
+        {
+            sendTcpSyn(data, 0x6002, 1883);
+            sendMqttConnect = false;
+        }
+        else if(sendPubackFlag) // Send MQTT PUBACK if QoS = 1 for Rx'd PUBLISH packet
+        {
+            mqttPubAckRec(data, 0x5018, 4);
+            sendPubackFlag = false;
+        }
+        else if(sendPubrecFlag) // Send MQTT PUBREC if QoS = 2 for Rx'd PUBLISH packet
+        {
+            mqttPubAckRec(data, 0x5018, 5);
+            sendPubrecFlag = false;
+        }
+
+        /* Start of CLI Commands */
         if(userInput.endOfString && isCommand(&userInput, "dhcp", 2))
         {
             char *token;
 
             token = getFieldString(&userInput, 1); // Retrieve DHCP command from user
 
-            if(strcmp(token, "on") == 0)           // Enables DHCP mode and stores the mode persistently in EEPROM
+            if(strcmp(token, "ON") == 0)           // Enables DHCP mode and stores the mode persistently in EEPROM
             {
                 if(!dhcpEnabled)
                 {
@@ -291,7 +329,7 @@ int main(void)
                     releaseRequest = true;
                 }
             }
-            else if(strcmp(token, "off") == 0) // Disables DHCP mode and stores the mode persistently in EEPROM
+            else if(strcmp(token, "OFF") == 0) // Disables DHCP mode and stores the mode persistently in EEPROM
             {
                 if(dhcpEnabled)
                 {
@@ -300,10 +338,11 @@ int main(void)
                     sendDhcpReleaseMessage(data);
                     setStaticNetworkAddresses();     // Update ifconfig
                     etherDisableDhcpMode();
+                    dhcpIpLeased = false;
                     sendDhcpInformMessage(data);
                 }
             }
-            else if(strcmp(token, "refresh") == 0) // Refresh Current IP address (if in DHCP mode)
+            else if(strcmp(token, "REFRESH") == 0) // Refresh Current IP address (if in DHCP mode)
             {
                 if(dhcpEnabled)
                 {
@@ -312,7 +351,7 @@ int main(void)
                     dhcpRequestType = 2;
                 }
             }
-            else if(strcmp(token, "release") == 0) // Release Current IP address (if in DHCP mode)
+            else if(strcmp(token, "RELEASE") == 0) // Release Current IP address (if in DHCP mode)
             {
                 if(dhcpEnabled)
                 {
@@ -322,53 +361,6 @@ int main(void)
                     dhcpRequestType = 0;
                 }
             }
-            resetUserInput(&userInput);
-        }
-        else if(!dhcpEnabled && userInput.endOfString && isCommand(&userInput, "set", 6))
-        {
-            char token[MAX_CHARS + 1];
-            uint8_t add1, add2, add3, add4;
-
-            // Retrieve network configuration parameter
-            strcpy(token,getFieldString(&userInput, 1));
-
-            // Get Network Address
-            add1 = getFieldInteger(&userInput, 2);
-            add2 = getFieldInteger(&userInput, 3);
-            add3 = getFieldInteger(&userInput, 4);
-            add4 = getFieldInteger(&userInput, 5);
-
-            if(strcmp(token, "ip") == 0)      // Set Internet Protocol address
-            {
-                etherSetIpAddress(add1, add2, add3, add4);
-                storeAddressEeprom(add1, add2, add3, add4, 0x0011);
-            }
-            else if(strcmp(token, "gw") == 0) // Set Gateway address
-            {
-                etherSetIpGatewayAddress(add1, add2, add3, add4);
-                storeAddressEeprom(add1, add2, add3, add4, 0x0012);
-            }
-            else if(strcmp(token, "dns") == 0) // Set Domain Name System address
-            {
-                setDnsAddress(add1, add2, add3, add4);
-                storeAddressEeprom(add1, add2, add3, add4, 0x0013);
-            }
-            else if(strcmp(token, "sn") == 0) // Set Sub-net Mask
-            {
-                etherSetIpSubnetMask(add1, add2, add3, add4);
-                storeAddressEeprom(add1, add2, add3, add4, 0x0014);
-            }
-            else if(strcmp(token, "MQTT") == 0) // Set Sub-net Mask
-            {
-                setMqttAddress(add1, add2, add3, add4);
-                storeAddressEeprom(add1, add2, add3, add4, 0x0015);
-            }
-            resetUserInput(&userInput);
-        }
-        else if(userInput.endOfString && isCommand(&userInput, "ifconfig", 1))
-        {
-            userInput.fieldCount = 0;
-            displayIfconfigInfo(); // displays current MAC, IP, GW, SN, DNS, and DHCP mode
             resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "set", 6))
@@ -384,22 +376,74 @@ int main(void)
             add2 = getFieldInteger(&userInput, 3);
             add3 = getFieldInteger(&userInput, 4);
             add4 = getFieldInteger(&userInput, 5);
+
+            if(!dhcpEnabled && strcmp(token, "IP") == 0)      // Set Internet Protocol address
+            {
+                etherSetIpAddress(add1, add2, add3, add4);
+                storeAddressEeprom(add1, add2, add3, add4, 0x0011);
+            }
+            else if(!dhcpEnabled && strcmp(token, "GW") == 0) // Set Gateway address
+            {
+                etherSetIpGatewayAddress(add1, add2, add3, add4);
+                storeAddressEeprom(add1, add2, add3, add4, 0x0012);
+            }
+            else if(!dhcpEnabled && strcmp(token, "DNS") == 0) // Set Domain Name System address
+            {
+                setDnsAddress(add1, add2, add3, add4);
+                storeAddressEeprom(add1, add2, add3, add4, 0x0013);
+            }
+            else if(!dhcpEnabled && strcmp(token, "SN") == 0) // Set Sub-net Mask
+            {
+                etherSetIpSubnetMask(add1, add2, add3, add4);
+                storeAddressEeprom(add1, add2, add3, add4, 0x0014);
+            }
+            else if(strcmp(token, "MQTT") == 0) // Set Sub-net Mask
+            {
+                setMqttAddress(add1, add2, add3, add4);
+                storeAddressEeprom(add1, add2, add3, add4, 0x0015);
+            }
+
+            resetUserInput(&userInput);
+        }
+        else if(userInput.endOfString && isCommand(&userInput, "ifconfig", 1))
+        {
+            userInput.fieldCount = 0;
+            displayIfconfigInfo(); // displays current MAC, IP, GW, SN, DNS, and DHCP mode
+            resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "publish", 3))
         {
+            // Retrieve network configuration parameter
+            strcpy(topic,getFieldString(&userInput, 1));
 
+            // Retrieve network configuration parameter
+            strcpy(payload,getFieldString(&userInput, 2));
+
+            // MQTT Publish Packet
+            mqttPublish(data, 0x5018, topic, payload);
+
+            resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "subscribe", 2))
         {
+            // Retrieve network configuration parameter
+            strcpy(topic,getFieldString(&userInput, 1));
 
+            mqttSubscribe(data, 0x5018, topic);
+            resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "unsubscribe", 2))
         {
+            // Retrieve network configuration parameter
+            strcpy(topic,getFieldString(&userInput, 1));
 
+            mqttUnsubscribe(data, 0x5018, topic);
+
+            resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "connect", 1))
         {
-            sendMqttTcpSyn(data, 0x6002);
+            sendMqttConnect = true;
             resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "disconnect", 1))
@@ -407,6 +451,7 @@ int main(void)
             mqttDisconnectMessage(data, 0x5018);
             establishedState = false;
             closeState = true;
+            stopTimer(mqttPing);        // Stop Ping Request Timer
             resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "reboot", 1))
@@ -419,6 +464,13 @@ int main(void)
         else if(userInput.endOfString)
         {
             resetUserInput(&userInput);
+        }
+
+        /* Start of IFTTT Rules Table */
+        if(pubMessageReceived && isCommand(&topic, "env", 1))
+        {
+            if(isCommand(&topic, "env", 1))
+            pubMessageReceived = false;
         }
     }
 

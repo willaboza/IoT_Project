@@ -41,8 +41,10 @@ typedef struct _tcpFrame // 20 Bytes in Length
 
 bool etherIsTcp(uint8_t packet[]);
 uint8_t etherIsTcpMsgType(uint8_t packet[]);
+void tcpAckReceived(uint8_t packet[]);
 void sendTcpMessage(uint8_t packet[], uint16_t flags);
 void getTcpData(uint8_t packet[]);
 bool checkForDuplicates(uint8_t packet[]);
+void sendTcpSyn(uint8_t packet[], uint16_t flags, uint16_t port);
 
 #endif /* TCP_H_ */

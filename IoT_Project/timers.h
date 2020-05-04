@@ -22,6 +22,7 @@ extern bool renewRequest;
 extern bool rebindRequest;
 extern bool releaseRequest;
 extern bool arpResponseRx;
+extern bool sendMqttPing;
 extern uint32_t leaseTime;
 extern uint8_t dhcpRequestType;
 
@@ -46,6 +47,7 @@ void arpResponseTimer();
 void waitTimer();
 void renewRetransmitTimer();
 void rebindRetransmitTimer();
+void mqttPing();
 
 
 #endif /* TIMERS_H_ */

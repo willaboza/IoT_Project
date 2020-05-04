@@ -21,7 +21,7 @@ void getsUart0(USER_DATA* data)
     {
         data->buffer[count++] = '\0';
         data->endOfString = true;
-        putsUart0("\r\n");
+        sendUart0String("\r\n");
     }
     else
     {
@@ -32,6 +32,8 @@ void getsUart0(USER_DATA* data)
         }
         if (c >= ' ' && c < 127)
         {
+            data->buffer[count] = c;
+            /*
             if('A' <= c && c <= 'Z')
             {
                 data->buffer[count] = c + 32;  // Converts capital letter to lower case
@@ -40,11 +42,12 @@ void getsUart0(USER_DATA* data)
             {
                 data->buffer[count] = c;
             }
+            */
         }
     }
 }
 
-// Function to Tokenize Strings
+// Function to Ping RequestTokenize Strings
 void parseFields(USER_DATA* data)
 {
     char    c;
@@ -58,7 +61,7 @@ void parseFields(USER_DATA* data)
 
     if(c != '\0' && count <= MAX_CHARS)
     {
-        if('a' <= c && c <= 'z') // Verify is character is an alpha (case sensitive)
+        if((('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z') || ('/' == c)) && !pubMessageReceived) // Verify is character is an alpha (case in-sensitive)
         {
             if(data->delimeter == true)
             {
@@ -164,9 +167,8 @@ void printMainMenu()
 {
     sendUart0String("Commands:\r\n");
     sendUart0String("  dhcp ON|OFF|REFRESH|RELEASE\r\n");
-    sendUart0String("  set IP|GW|DNS|SN w.x.y.z\r\n");
+    sendUart0String("  set IP|GW|DNS|SN|MQTT w.x.y.z\r\n");
     sendUart0String("  ifconfig\r\n");
-    sendUart0String("  set MQTT w.x.y.z\r\n");
     sendUart0String("  publish TOPIC DATA\r\n");
     sendUart0String("  subscribe TOPIC\r\n");
     sendUart0String("  unsubscribe TOPIC\r\n");

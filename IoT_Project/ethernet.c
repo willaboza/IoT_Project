@@ -822,77 +822,7 @@ void displayConnectionInfo()
 
     // Retrieve Mac Address
     etherGetMacAddress(mac);
-    sendUart0String("  HW: ");
-    for (i = 0; i < HW_ADD_LENGTH; i++)
-    {
-        sprintf(str, "%02u", mac[i]);
-        sendUart0String(str);
-        if (i < (HW_ADD_LENGTH - 1))
-            sendUart0String(":");
-    }
-    sendUart0String("\r\n");
-
-    // Retrieve IP Address
-    etherGetIpAddress(ip);
-    sendUart0String("  IP: ");
-    for (i = 0; i < 4; i++)
-    {
-        sprintf(str, "%u", ip[i]);
-        sendUart0String(str);
-        if (i < 4-1)
-            sendUart0String(".");
-    }
-
-    // Check if DHCP Mode is Enabled
-    if (etherIsDhcpEnabled())
-        sendUart0String(" (dhcp)");
-    else
-        sendUart0String(" (static)");
-    sendUart0String("\r\n");
-
-    // Retrieve IP Subnet Mask
-    etherGetIpSubnetMask(ip);
-    sendUart0String("  SN: ");
-    for (i = 0; i < 4; i++)
-    {
-        sprintf(str, "%u", ip[i]);
-        sendUart0String(str);
-        if (i < 4-1)
-            sendUart0String(".");
-    }
-    sendUart0String("\r\n");
-
-    // Retrieve IP Gateway Address
-    etherGetIpGatewayAddress(ip);
-    sendUart0String("  GW: ");
-    for (i = 0; i < 4; i++)
-    {
-        sprintf(str, "%u", ip[i]);
-        sendUart0String(str);
-        if (i < 4-1)
-            sendUart0String(".");
-    }
-    sendUart0String("\r\n");
-
-    // Check if Ethernet Link is UP|DOWN
-    if (etherIsLinkUp())
-        sendUart0String("  Link is up\r\n");
-    else
-        sendUart0String("  Link is down\r\n");
-}
-
-
-// Function to Ethernet Connection Information
-void displayIfconfigInfo()
-{
-    char str[10];
-    uint8_t i;
-    uint8_t mac[6];
-    uint8_t ip[4];
-
-    // Retrieve Mac Address
-    etherGetMacAddress(mac);
-    sendUart0String("  MAC: ");
+    sendUart0String("  HW:  ");
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
         sprintf(str, "%02u", mac[i]);
@@ -945,8 +875,102 @@ void displayIfconfigInfo()
     sendUart0String("\r\n");
 
     // Retrieve IP Gateway Address
+    getMqttAddress(ip);
+    sendUart0String("  MQTT: ");
+    for (i = 0; i < 4; i++)
+    {
+        sprintf(str, "%u", ip[i]);
+        sendUart0String(str);
+        if (i < 4-1)
+            sendUart0String(".");
+    }
+    sendUart0String("\r\n");
+
+    // Check if Ethernet Link is UP|DOWN
+    if (etherIsLinkUp())
+        sendUart0String("  Link is up\r\n");
+    else
+        sendUart0String("  Link is down\r\n");
+}
+
+
+// Function to Ethernet Connection Information
+void displayIfconfigInfo()
+{
+    char str[10];
+    uint8_t i;
+    uint8_t mac[6];
+    uint8_t ip[4];
+
+    // Retrieve Mac Address
+    etherGetMacAddress(mac);
+    sendUart0String("  MAC:  ");
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        sprintf(str, "%02u", mac[i]);
+        sendUart0String(str);
+        if (i < (HW_ADD_LENGTH - 1))
+            sendUart0String(":");
+    }
+    sendUart0String("\r\n");
+
+    // Retrieve IP Address
+    etherGetIpAddress(ip);
+    sendUart0String("  IP:   ");
+    for (i = 0; i < 4; i++)
+    {
+        sprintf(str, "%u", ip[i]);
+        sendUart0String(str);
+        if (i < 4-1)
+            sendUart0String(".");
+    }
+
+    // Check if DHCP Mode is Enabled
+    if (etherIsDhcpEnabled())
+        sendUart0String(" (dhcp)");
+    else
+        sendUart0String(" (static)");
+    sendUart0String("\r\n");
+
+    // Retrieve IP Subnet Mask
+    etherGetIpSubnetMask(ip);
+    sendUart0String("  SN:   ");
+    for (i = 0; i < 4; i++)
+    {
+        sprintf(str, "%u", ip[i]);
+        sendUart0String(str);
+        if (i < 4-1)
+            sendUart0String(".");
+    }
+    sendUart0String("\r\n");
+
+    // Retrieve IP Gateway Address
+    etherGetIpGatewayAddress(ip);
+    sendUart0String("  GW:   ");
+    for (i = 0; i < 4; i++)
+    {
+        sprintf(str, "%u", ip[i]);
+        sendUart0String(str);
+        if (i < 4-1)
+            sendUart0String(".");
+    }
+    sendUart0String("\r\n");
+
+    // Retrieve IP Gateway Address
     getDnsAddress(ip);
-    sendUart0String("  DNS: ");
+    sendUart0String("  DNS:  ");
+    for (i = 0; i < 4; i++)
+    {
+        sprintf(str, "%u", ip[i]);
+        sendUart0String(str);
+        if (i < 4-1)
+            sendUart0String(".");
+    }
+    sendUart0String("\r\n");
+
+    // Retrieve IP Gateway Address
+    getMqttAddress(ip);
+    sendUart0String("  MQTT: ");
     for (i = 0; i < 4; i++)
     {
         sprintf(str, "%u", ip[i]);
