@@ -15,6 +15,13 @@
 #include <ctype.h>
 #include "tm4c123gh6pm.h"
 
+#define SEC_IN_DAY 86400
+#define SEC_IN_HOUR 3600
+#define SEC_IN_MIN 60
+#define MIN_IN_HOUR 60
+#define HOUR_IN_DAY 24
+#define MONTH_IN_YEAR 12
+
 typedef struct _timeFrame
 {
     uint8_t hours;
@@ -23,7 +30,10 @@ typedef struct _timeFrame
 } timeFrame;
 
 void initRtc();
+uint32_t getRtcCounter();
 void rtcDisable();
+void getCurrentTime();
+void rtcIsr();
 
 
 #endif /* RTC_H_ */

@@ -98,8 +98,6 @@ uint8_t etherIsTcpMsgType(uint8_t packet[])
 // Function to Adjust SEQ Number and ACK Number on Receiving a TCP ACK Message
 void tcpAckReceived(uint8_t packet[])
 {
-    uint8_t tmp8 = 0, i = 0;
-    uint16_t tcpSize = 0, tmp16 = 0, tmpSrcPrt;
     uint32_t tmp32 = 0;
 
     etherFrame* ether = (etherFrame*)packet;
@@ -330,8 +328,8 @@ void sendTcpSyn(uint8_t packet[], uint16_t flags, uint16_t port)
 
 void getTcpData(uint8_t packet[])
 {
-    uint16_t i, tmp16;
-    char c;
+    /*
+    uint16_t tmp16;
 
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip       = (ipFrame*)&ether->data;
@@ -343,7 +341,7 @@ void getTcpData(uint8_t packet[])
 
 
     // Output TCP Client Data to Terminal
-    /*
+
     sendUart0String("  ");
     sendUart0String(tcp->data[0]);
     sendUart0String("\r\n");

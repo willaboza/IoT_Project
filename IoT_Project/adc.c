@@ -22,10 +22,11 @@
 void initAdc()
 {
     // Enable clocks
-    SYSCTL_RCGC2_R = SYSCTL_RCGC2_GPIOE;
-    _delay_cycles(3);
+    SYSCTL_RCGCADC_R |= SYSCTL_RCGCADC_R0;
 
-    SYSCTL_RCGCADC_R |= 1;
+    // Enable clocks
+    enablePort(PORTE);
+    _delay_cycles(3);
 
     // Configure AN0 as an analog input
     GPIO_PORTE_AFSEL_R |= 0x08;                      // select alternative functions for AN0 (PE3)
@@ -46,4 +47,17 @@ int16_t readAdc0Ss3()
     ADC0_PSSI_R |= ADC_PSSI_SS3;                     // set start bit
     while (ADC0_ACTSS_R & ADC_ACTSS_BUSY);           // wait until SS3 is not busy
     return ADC0_SSFIFO3_R;                           // get single result from the FIFO
+}
+
+uint8_t instantTemp()
+{
+    uint8_t temperature;
+    uint16_t raw;
+    float instantTemp;
+
+    raw = readAdc0Ss3();
+    raw = (((raw / (4096.0 * 3.3)) - 0.424) / 0.00625)-165;
+    temperature = (raw & 0x00FF);
+
+    return temperature;
 }

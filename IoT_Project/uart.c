@@ -22,7 +22,6 @@
 #include "tm4c123gh6pm.h"
 #include "uart.h"
 #include "gpio.h"
-#include "mosquitto.h"
 
 // Pins
 #define UART_TX PORTA,1

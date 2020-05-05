@@ -12,11 +12,14 @@ uint8_t mqttBrokerMac[HW_ADD_LENGTH]    = {0x04,0xD3,0xB0,0x7F,0x7E};
 uint8_t mqttMsgType = 0;
 uint16_t mqttSrcPort = 49100;
 uint16_t packetId = 0;
+
 bool mqttMsgFlag = false;
 bool sendMqttConnect = false;
 bool sendPubackFlag = false;
 bool sendPubrecFlag = false;
 bool pubMessageReceived = false;
+
+subscribedTopics topics[MAX_TABLE_SIZE] = {0};
 
 // Set DNS Address
 void setMqttAddress(uint8_t mqtt0, uint8_t mqtt1, uint8_t mqtt2, uint8_t mqtt3)
@@ -35,12 +38,47 @@ void getMqttAddress(uint8_t mqtt[4])
         mqtt[i] = ipMqttAddress[i];
 }
 
+// Function finds 1st slot with validBit field set to false and returns the index value to it.
+uint8_t findEmptySlot()
+{
+    uint8_t i, tmp8;
+    bool ok = true;
+    i = 0;
+    while((i < MAX_TABLE_SIZE) && ok)
+    {
+        if(!(topics[i].validBit))
+        {
+            tmp8 = i;
+            ok = false;
+        }
+        i++;
+    }
+    return tmp8;
+}
+
+// Function to Create Empty Slot in Subscriptions Table for re-use
+void createEmptySlot(char info[])
+{
+    uint8_t i = 0;
+    bool ok = true;
+
+    i = 0;
+    while((i < MAX_TABLE_SIZE) && ok)
+    {
+        if(strcmp(topics[i].subs, info) == 0)
+        {
+            topics[i].validBit = false;
+            ok = true;
+        }
+        i++;
+    }
+}
+
 // Determines whether packet is MQTT
 bool mqttMessage(uint8_t packet[])
 {
     bool ok= false;
     uint16_t tmp16;
-    char str[80];
 
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip = (ipFrame*)&ether->data;
@@ -55,70 +93,13 @@ bool mqttMessage(uint8_t packet[])
 
     // If Source Port = 1883 it is a MQTT packet.
     // Further filter for only MQTT Publish packets received from broker
-    // tmp16 = htons(tcp->sourcePort);
-    if(htons(tcp->sourcePort) == 1883 && (mqtt->control & 0xF0) == 48)
+    tmp16 = htons(tcp->sourcePort);
+    if((tmp16 == 1883) && (mqtt->control & 0xF0) == 48)
     {
         ok = true;
     }
 
     return ok;
-}
-
-// Function to process incoming MQTT Messages
-void processMqttMessage(uint8_t packet[], USER_DATA* topic, USER_DATA* data)
-{
-    uint16_t msgLength, topicLength, payloadLength, k,i;
-
-    etherFrame* ether = (etherFrame*)packet;
-    ipFrame* ip = (ipFrame*)&ether->data;
-    ip->revSize       = 0x45; // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
-    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
-    mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
-
-    // Flag for when MQTT PUBLISH Recieved
-    pubMessageReceived = true;
-
-    msgLength = mqtt->packetLength; // Get Message Length
-
-    i = 0;
-    topicLength = mqtt->data[i++] << 8; // Topic Length MSB
-    topicLength = mqtt->data[i++];      // Topic Length LSB
-
-    k = 0;
-    // Process Topic of PUBLISH Packet
-    while(k < topicLength)
-    {
-        topic->buffer[k++] = mqtt->data[i++];
-    }
-    topic[k++] = '\0';
-    topic->characterCount = k;
-
-    // If QoS Level Set then Look for Packet Identifier
-    if((mqtt->control & 0x06) == 0x02 || (mqtt->control & 0x0F) == 0x04)
-    {
-        packetId = mqtt->data[i++] << 8; // Packet Identifier MSB
-        packetId = mqtt->data[i++];      // Packet Identifier LSB
-
-        if((mqtt->control & 0x06) == 0x02) // QoS = 1
-        {
-            sendPubackFlag = true;
-        }
-        else if((mqtt->control & 0x0F) == 0x04) // QoS = 2
-        {
-            sendPubrecFlag = true;
-        }
-    }
-
-    payloadLength = msgLength - topicLength - 2;
-
-    k = 0;
-    // Process Payload of PUBLISH Packet
-    while(k < payloadLength)
-    {
-        data->buffer[k++] = mqtt->data[i++];
-    }
-    data[k++] = '\0';
-    data->characterCount = k;
 }
 
 // Connect Variable Header Contains: Protocol Name, Protocol Level, Connect Flags, Keep Alive, and Properties
@@ -360,6 +341,7 @@ void mqttPingRequest(uint8_t packet[], uint16_t flags)
     tcp->dataCtrlFields = htons(flags);
     tcp->seqNum = prevSeqNum;
     tcp->ackNum = prevAckNum;
+    prevSeqNum += 1;
 
     i = 0;
     // PING REQUEST
@@ -442,7 +424,7 @@ void mqttPublish(uint8_t packet[], uint16_t flags, char topic[], char data[])
     tcp->ackNum = prevAckNum;
 
     // PUBLISH Packet
-    mqtt->control = 0x30;
+    mqtt->control = 0x31; // RETAIN Flag is set
 
     // TOPIC NAME
     i = 2;
@@ -638,6 +620,7 @@ void mqttSubscribe(uint8_t packet[], uint16_t flags, char topic[])
     tcp->dataCtrlFields = htons(0x5018);
     tcp->seqNum = prevSeqNum;
     tcp->ackNum = prevAckNum;
+    prevSeqNum += 1;
 
     // SUBSCRIBE Packet
     mqtt->control = 0x82;
@@ -740,6 +723,7 @@ void mqttUnsubscribe(uint8_t packet[], uint16_t flags, char topic[])
     tcp->dataCtrlFields = htons(0x5018);
     tcp->seqNum = prevSeqNum;
     tcp->ackNum = prevAckNum;
+    prevSeqNum+=1;
 
     // UNSUBSCRIBE Packet
     mqtt->control = 0xA2;

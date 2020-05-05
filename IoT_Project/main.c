@@ -30,6 +30,7 @@
 #include "mqtt.h"
 #include "rtc.h"
 #include "adc.h"
+#include "pwm0.h"
 
 // Pins
 #define RED_LED PORTF,     1
@@ -61,14 +62,15 @@ int main(void)
     initUart0();
     initEeprom();
     initTimer();
-//    initAdc();
+    initAdc();
 //    initRtc();
-//    initWatchdog();
+    initWatchdog();
 
     // Declare Variables
-    USER_DATA userInput;
-    USER_DATA topic;
-    USER_DATA payload;
+    userData userInput = {0};
+    userData topic = {0};
+    userData payload = {0};
+
     uint8_t data[MAX_PACKET_SIZE];
 
     // Setup UART0 Baud Rate
@@ -79,12 +81,13 @@ int main(void)
 
     // Flash LED
     setPinValue(GREEN_LED, 1);
-    waitMicrosecond(100000);
+    waitMicrosecond(1000000);
     setPinValue(GREEN_LED, 0);
-    waitMicrosecond(100000);
 
     // Set Variables for User Input to Initial Condition
-    resetUserInput(&userInput);
+    resetUserInput(&userInput); // Used for CLI
+    resetUserInput(&topic);     // Used for MQTT Topics
+    resetUserInput(&payload);   // Used for MQTT Payloads
 
     // Display Main Menu
     printMainMenu();
@@ -135,6 +138,35 @@ int main(void)
             rebindRequest = false;
         }
 
+
+        /* Handle Sending of MQTT Packets Here */
+        if(sendMqttPing) // Send Ping Request
+        {
+            mqttPingRequest(data, 0x5018);
+            sendMqttPing = false;
+            startOneShotTimer(mqttPing, (KEEP_ALIVE_TIME - 5));
+        }
+        else if(sendMqttConnect && dhcpEnabled && dhcpIpLeased) // Wait until DHCP finished before sending connect msg
+        {
+            sendTcpSyn(data, 0x6002, 1883);
+            sendMqttConnect = false;
+        }
+        else if(sendMqttConnect && !(dhcpEnabled)) // If DHCP Mode not enabled can send connect msg right away
+        {
+            sendTcpSyn(data, 0x6002, 1883);
+            sendMqttConnect = false;
+        }
+        else if(sendPubackFlag) // Send MQTT PUBACK if QoS = 1 for Rx'd PUBLISH packet
+        {
+            mqttPubAckRec(data, 0x5018, 4);
+            sendPubackFlag = false;
+        }
+        else if(sendPubrecFlag) // Send MQTT PUBREC if QoS = 2 for Rx'd PUBLISH packet
+        {
+            mqttPubAckRec(data, 0x5018, 5);
+            sendPubrecFlag = false;
+        }
+
         // Packet processing
         if (etherIsDataAvailable())
         {
@@ -142,7 +174,7 @@ int main(void)
             {
                 setPinValue(RED_LED, 1);
                 waitMicrosecond(100000);
-                setPinValue(RED_LED, 0);
+                setPinValue(RED_LED, 1);
             }
 
             // Get packet
@@ -159,11 +191,15 @@ int main(void)
                          // We are coding up at TCP Server for HTTP or Telnet
                          uint8_t type;
 
+                         // Check if MQTT packet was received, if so process it.
                          if(mqttMessage(data))
                          {
                              processMqttMessage(data, &topic, &payload);
-                             parseFields(&topic);
-                             parseFields(&payload);
+                             parseMqttPacket(&topic);
+                             parseMqttPacket(&payload);
+
+                             // Flag for when MQTT PUBLISH Recieved
+                             pubMessageReceived = true;
                          }
 
                          type = etherIsTcpMsgType(data);
@@ -201,15 +237,15 @@ int main(void)
                          }
                          else if(closeState) // Enter TCP Close State
                          {
-                             stopTimer(mqttPing); // Stop MQTT PING Timer
-
                              if(type == 2)
                              {
+                                 stopTimer(mqttPing); // Stop MQTT PING Timer
                                  closeState = false;
                                  listenState = true;
                              }
                              else if(type == 4) // Connection Termination
                              {
+                                 stopTimer(mqttPing); // Stop MQTT PING Timer
                                  sendTcpMessage(data, 0x5011); // Send FIN+ACK
                              }
                          }
@@ -285,32 +321,99 @@ int main(void)
              }
         }
 
-        /* Handle Sending of MQTT Packets Here */
-        if(sendMqttPing) // Send Ping Request
+        /* Start of IFTTT Rules Table */
+        if(pubMessageReceived && isMqttCommand(&topic, "env", 0))
         {
-            mqttPingRequest(data, 0x5018);
-            sendMqttPing = false;
-            startOneShotTimer(mqttPing, (KEEP_ALIVE_TIME - 5));
+            if(isMqttCommand(&topic, "temp", 1))
+            {
+                char str[50];
+                char buffer[10];
+                uint16_t temp;
+
+                temp = getFieldInteger(&payload, 2);
+
+                // Send Published Temperature to UART
+                sprintf(str, "Degrees Celsius : %u", temp);
+                sendUart0String(str);
+                sendUart0String("\r\n");
+
+                // Update env/temp with more recent value and then MQTT Publish Packet
+                // sprintf(str, "%s", "env/temp");
+                // sprintf(buffer, "%u", instantTemp());
+                // mqttPublish(data, 0x5018, str, buffer);
+            }
+
+            if(isMqttCommand(&topic, "led", 1))
+            {
+                if(isMqttCommand(&topic, "green", 2))
+                {
+                    if(isMqttCommand(&payload, "on", 0))
+                    {
+                        setPinValue(GREEN_LED, 1); // Green LED ON
+                        sendUart0String("  GREEN LED ON\r\n");
+                    }
+                    else if(isMqttCommand(&payload, "off", 0))
+                    {
+                        setPinValue(GREEN_LED, 0); // Green LED OFF
+                        sendUart0String("  GREEN LED OFF\r\n");
+                    }
+                }
+                else if(isMqttCommand(&topic, "red", 2))
+                {
+                    if(isMqttCommand(&payload, "on", 0))
+                    {
+                        setPinValue(RED_LED, 1); // RedLED ON
+                        sendUart0String("  RED LED ON\r\n");
+                    }
+                    else if(isMqttCommand(&payload, "off", 0))
+                    {
+                        setPinValue(RED_LED, 0); // RED LED OFF
+                        sendUart0String("  RED LED OFF\r\n");
+                    }
+                }
+                else if(isMqttCommand(&topic, "blue", 2))
+                {
+                    if(isMqttCommand(&payload, "on", 0))
+                    {
+                        setPinValue(BLUE_LED, 1); // Blue LED ON
+                        sendUart0String("  BLUE LED ON\r\n");
+                    }
+                    else if(isMqttCommand(&payload, "off", 0))
+                    {
+                        setPinValue(BLUE_LED, 0); // Blue LED OFF
+                        sendUart0String("  BLUE LED OFF\r\n");
+                    }
+                }
+
+            }
+            else if(isMqttCommand(&topic, "pb", 1) && isMqttCommand(&topic, "status", 2)) // Print To Terminal Status of Pushbutton
+            {
+                char buffer[25];
+
+                strcpy(buffer, getFieldString(&payload, 0));
+                sendUart0String(buffer);
+                sendUart0String("\r\n");
+            }
+
+            pubMessageReceived = false;
+            resetUserInput(&topic);
+            resetUserInput(&payload);
         }
-        else if(sendMqttConnect && dhcpEnabled && dhcpIpLeased) // Wait until DHCP finished before sending connect msg
+        else if(pubMessageReceived)
         {
-            sendTcpSyn(data, 0x6002, 1883);
-            sendMqttConnect = false;
+            pubMessageReceived = false;
+            resetUserInput(&topic);
+            resetUserInput(&payload);
         }
-        else if(sendMqttConnect && !(dhcpEnabled)) // If DHCP Mode not enabled can send connect msg right away
+
+        if(!(GPIO_PORTF_DATA_R && PUSH_BUTTON)) // Check to see if SW1 Pressed
         {
-            sendTcpSyn(data, 0x6002, 1883);
-            sendMqttConnect = false;
-        }
-        else if(sendPubackFlag) // Send MQTT PUBACK if QoS = 1 for Rx'd PUBLISH packet
-        {
-            mqttPubAckRec(data, 0x5018, 4);
-            sendPubackFlag = false;
-        }
-        else if(sendPubrecFlag) // Send MQTT PUBREC if QoS = 2 for Rx'd PUBLISH packet
-        {
-            mqttPubAckRec(data, 0x5018, 5);
-            sendPubrecFlag = false;
+            char str[25];
+            char buffer[25];
+
+            sprintf(str, "%s", "env/pb");
+            sprintf(buffer, "%s", "ButtonPressed");
+            mqttPublish(data, 0x5018, str, buffer);
         }
 
         /* Start of CLI Commands */
@@ -397,7 +500,7 @@ int main(void)
                 etherSetIpSubnetMask(add1, add2, add3, add4);
                 storeAddressEeprom(add1, add2, add3, add4, 0x0014);
             }
-            else if(strcmp(token, "MQTT") == 0) // Set Sub-net Mask
+            else if(strcmp(token, "MQTT") == 0)              // Set Sub-net Mask
             {
                 setMqttAddress(add1, add2, add3, add4);
                 storeAddressEeprom(add1, add2, add3, add4, 0x0015);
@@ -413,64 +516,114 @@ int main(void)
         }
         else if(userInput.endOfString && isCommand(&userInput, "publish", 3))
         {
-            // Retrieve network configuration parameter
-            strcpy(topic,getFieldString(&userInput, 1));
+            char str[80];
+            char buffer[80];
 
             // Retrieve network configuration parameter
-            strcpy(payload,getFieldString(&userInput, 2));
+            strcpy(str,getFieldString(&userInput, 1));
+
+            // Retrieve network configuration parameter
+            strcpy(buffer,getFieldString(&userInput, 2));
 
             // MQTT Publish Packet
-            mqttPublish(data, 0x5018, topic, payload);
+            mqttPublish(data, 0x5018, str, buffer);
 
             resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "subscribe", 2))
         {
-            // Retrieve network configuration parameter
-            strcpy(topic,getFieldString(&userInput, 1));
+            char buffer[80];
+            uint8_t index;
 
-            mqttSubscribe(data, 0x5018, topic);
+            // Copy MQTT Topic to subscribe to
+            strcpy(buffer, getFieldString(&userInput, 1));
+
+            // Find empty slot in subscribed to table
+            index = findEmptySlot();
+
+            // Copy Subscription to Table
+            strcpy(topics[index].subs, buffer);
+            topics[index].validBit = true;
+
+            // Send MQTT Subscribe Packet
+            mqttSubscribe(data, 0x5018, buffer);
+
             resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "unsubscribe", 2))
         {
-            // Retrieve network configuration parameter
-            strcpy(topic,getFieldString(&userInput, 1));
+            char buffer[80];
 
-            mqttUnsubscribe(data, 0x5018, topic);
+            // Retrieve network configuration parameter
+            strcpy(buffer, getFieldString(&userInput, 1));
+
+            // Remove Topic from Subscription Table
+            createEmptySlot(buffer);
+
+            // Send MQTT Unsubscribe Packet
+            mqttUnsubscribe(data, 0x5018, buffer);
 
             resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "connect", 1))
         {
+            // Mark sendMqttConnect as TRUE to initiate sending of MQTT Connect Packet
             sendMqttConnect = true;
+
             resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "disconnect", 1))
         {
+            // Send MQTT Disconnect Packet
             mqttDisconnectMessage(data, 0x5018);
+
+            // Change TCP State
             establishedState = false;
             closeState = true;
-            stopTimer(mqttPing);        // Stop Ping Request Timer
+
+            // Stop Ping Request Timer
+            stopTimer(mqttPing);
+
+            resetUserInput(&userInput);
+        }
+        else if(userInput.endOfString && isCommand(&userInput, "help", 1))
+        {
+            char token[MAX_CHARS + 1];
+
+            // Retrieve network configuration parameter
+            strcpy(token, getFieldString(&userInput, 1));
+
+            if(strcmp(token, "Inputs") == 0)
+            {
+                printHelpInputs(); // Print help Inputs
+            }
+            else if(strcmp(token, "Outputs") == 0)
+            {
+                printHelpOututs(); // Print help Outputs
+            }
+            else if(strcmp(token, "Subs") == 0)
+            {
+                printSubscribedTopics(); // Print Subscribed Topics
+            }
             resetUserInput(&userInput);
         }
         else if(userInput.endOfString && isCommand(&userInput, "reboot", 1))
         {
-            while (EEPROM_EEDONE_R & EEPROM_EEDONE_WORKING); // Ensure no Read or Writes to EEPROM are occuring
+            // Ensure no Read or Writes to EEPROM are occuring
+            while (EEPROM_EEDONE_R & EEPROM_EEDONE_WORKING);
+
             sendUart0String("Rebooting System...\r\n");
             rebootFlag = true;
+
             resetUserInput(&userInput);
+        }
+        else if(userInput.endOfString && isCommand(&userInput, "reset", 1))
+        {
+            writeEeprom(0x0015, 0xFFFFFFFF); // Erase DHCP Mode in EEPROM
         }
         else if(userInput.endOfString)
         {
             resetUserInput(&userInput);
-        }
-
-        /* Start of IFTTT Rules Table */
-        if(pubMessageReceived && isCommand(&topic, "env", 1))
-        {
-            if(isCommand(&topic, "env", 1))
-            pubMessageReceived = false;
         }
     }
 

@@ -927,7 +927,6 @@ uint8_t dhcpOfferType(uint8_t packet[])
                     type = 0x01;
                     dhcpRequestType = 0;
                 }
-                //dhcpRequestType = 0;
             }
             else if(dhcp->options[i] == 0x05)
             {

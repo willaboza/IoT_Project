@@ -2,7 +2,7 @@
  * mqtt.h
  *
  *  Created on: Apr 14, 2020
- *      Author: willi
+ *      Author: William Bozarth
  */
 
 #ifndef MQTT_H_
@@ -10,14 +10,20 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 #include "tm4c123gh6pm.h"
 #include "ethernet.h"
 #include "terminal.h"
 #include "tcp.h"
 #include "uart.h"
 
-#define KEEP_ALIVE_TIME 60 // Keep Alive time for MQTT in seconds
+#define KEEP_ALIVE_TIME 120 // Keep Alive time for MQTT in seconds
+#define MAX_BUFFER_SIZE 80
+#define MAX_FIELD_SIZE  8
+#define MAX_TABLE_SIZE  10
+#define MAX_SUB_CHARS       25
 
 typedef struct _mqttFrame
 {
@@ -26,6 +32,13 @@ typedef struct _mqttFrame
   uint8_t   data[0];
 } mqttFrame;
 
+typedef struct _subscribedTopics
+{
+    bool validBit;
+    char subs[MAX_SUB_CHARS];
+} subscribedTopics;
+
+extern subscribedTopics topics[MAX_TABLE_SIZE];
 extern uint8_t ipMqttAddress[IP_ADD_LENGTH];
 extern uint8_t mqttMsgType;
 extern uint16_t packetId;
@@ -43,10 +56,11 @@ void mqttConnectMessage(uint8_t packet[], uint16_t flags);
 void mqttConnectAckMessage(uint8_t packet[]);
 void mqttDisconnectMessage(uint8_t packet[] , uint16_t flags);
 void mqttPingRequest(uint8_t packet[], uint16_t flags);
-void processMqttMessage(uint8_t packet[], char topic[], char data[]);
 void mqttPubAckRec(uint8_t packet[], uint16_t flags, uint8_t type);
 void mqttPublish(uint8_t packet[], uint16_t flags, char topic[], char data[]);
 void mqttSubscribe(uint8_t packet[], uint16_t flags, char topic[]);
 void mqttUnsubscribe(uint8_t packet[], uint16_t flags, char topic[]);
+void createEmptySlot(char info[]);
+uint8_t findEmptySlot();
 
 #endif /* MQTT_H_ */

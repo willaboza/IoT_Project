@@ -34,6 +34,15 @@ void initRtc()
     while(!(HIB_CTL_R & HIB_CTL_WRC)); // Spin until the write complete bit is set
 }
 
+// Read RTC Value stored in HIB_RTCC_R
+uint32_t getRtcCounter()
+{
+    uint32_t rtcCount;
+    rtcCount = HIB_RTCC_R; // Read RTC value in HIBRTCC register
+
+    return rtcCount;
+}
+
 void rtcDisable()
 {
     HIB_IM_R &= ~(HIB_IM_RTCALT0); // Turn off the RTC enable bit.
@@ -47,9 +56,9 @@ void getCurrentTime()
     uint8_t seconds = 0;
     uint32_t mod = 0;
     uint32_t temp = 0;
-
+/*
     // Determine difference between current count and initial count
-    deltaTime = (getHibRtcCounter() - startHibRtcCount);
+    deltaTime = (getRtcCounter() - startRtcCount);
 
     // Determine number of days elapsed as well as remaining hours
     mod = (deltaTime % SEC_IN_DAY);
@@ -72,6 +81,7 @@ void getCurrentTime()
 
     // Determine current Hours.
     currentHour = (startHour + hours + temp) % HOUR_IN_DAY;
+*/
 }
 
 // Hibernation Interrupt routine to execute
