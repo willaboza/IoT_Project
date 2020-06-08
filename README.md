@@ -14,4 +14,9 @@ This project was broken up into two seperate parts.
 
 ## Command Line Interface Requirements
 
-   Universal Asynchronous Receiver Transmitter (UART) will be used to interface with the device by using UART0 on the microcontroller. A virtual COM port, using Teraterm, provides a 
+   Teraterm is used as a virtual COM port to interface with the microcontroller, over UART0, allowing for transmition/reception of information between the user and device.
+   
+   | Command | Description |
+   | :----: | :----: |
+   | dhcp ON/OFF | Enables and disables DHCP mode (Mode is stored persistently in EEPROM). |
+   | dhcp Refresh/Release | Refreshes current IP address or releases current IP address (If in DHCP mode).|
