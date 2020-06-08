@@ -32,4 +32,12 @@ This project was broken up into two seperate parts.
 
 ## DHCP Client Implementation
 
-  DHCP client was implemented following [RFC2131](https://tools.ietf.org/html/rfc2131) and [RFC2132](https://tools.ietf.org/html/rfc2132#page-25). 
+  DHCP client was implemented following [RFC2131](https://tools.ietf.org/html/rfc2131) and [RFC2132](https://tools.ietf.org/html/rfc2132#page-25).
+  
+  On entering DHCP mode a DHCPDISCOVER message is broadcast and the device waits for any DHCPOFFER messages to be received. After the first DHCPOFFER message is received a DHCPREQUEST message is broadcast to the server where the offer originated.
+  
+  A gratuitious ARP is sent out after receiving the DHCPACK message, to ensure the IP leased is not currently being used by another device, and a 2 second timer is started allowing for any ARP responses. If there is no response received before the 2 second timer ends then leased IP addressed will be used by the device. 
+  
+  A renewal timer that is 50% of the lease time is started. If a timeout occurs for the renewal timer then a rebind timer is started that is 87.5% of the lease time. The lease for the IP address is then to be renewed by sending a DHCPREQUEST message, and is repeated until either an acknowledgment is received with the new lease or the rebind timer expires. 
+  
+  If a timeout of the rebind timer occurs then the DHCP client will send a DHCPRELEASE message for the currently leased IP and begin the process of leasing a new IP address by broadcasting a DHCPDISCOVER message.
