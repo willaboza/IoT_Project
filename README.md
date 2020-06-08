@@ -29,3 +29,7 @@ This project was broken up into two seperate parts.
    | connect | Sends a message to MQTT broker to connect. |
    | disconnect | Sends a message to MQTT broker to disconnect. |
    | reboot | Restarts microcontroller |
+
+## DHCP Client Implementation
+
+  DHCP client was implemented following [RFC2131](https://tools.ietf.org/html/rfc2131) and [RFC2132](https://tools.ietf.org/html/rfc2132#page-25). 
