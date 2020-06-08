@@ -20,3 +20,12 @@ This project was broken up into two seperate parts.
    | :----: | :----: |
    | dhcp ON/OFF | Enables and disables DHCP mode (Mode is stored persistently in EEPROM). |
    | dhcp Refresh/Release | Refreshes current IP address or releases current IP address (If in DHCP mode).|
+   | set IP/GW/DNS/SN w.x.y.z | Used to set the IP, Gatewat, DNS, and Subnet Mask addresses when DHCP mode is disabled (Values stored persistently in EEPROM). |
+   | ifconfig | Displays current IP, SN, GW, and DNS addresses as well as current DHCP mode. |
+   | set MQTT w.x.y.z | Sets IP address of MQTT broker (Stored persistently in EEPROM) |
+   | publish TOPIC DATA | Used to publish a topic and its associated data to MQTT broker |
+   | subscribe TOPIC | Subscribes to topic and displays data to terminal when topic is received later. |
+   | unsubscribe TOPIC | Unsubscribe from a topic. |
+   | connect | Sends a message to MQTT broker to connect. |
+   | disconnect | Sends a message to MQTT broker to disconnect. |
+   | reboot | Restarts microcontroller |
