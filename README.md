@@ -2,11 +2,28 @@
 
 This project was broken up into two seperate parts.
 
+## Hardware
+
+  A Texas Instruments (TI) TM4C123GH6PM microcontroller is used along with an ENC28J60 for interfacing with ethernet.
+
+Wiring of the pins from the microcontroller to the ENC28J60 are shown below.
+
+  | Microcontroller Pins | ENC28J60 Pins |
+   | :----: | :----: |
+   | PB3 | INT |
+   | PB6 | SO|
+   | PA2 | SCK |
+   | N/A | RESET |
+   | GND | GND |
+   | N/A | CLKOUT |
+   | N/A | WOL |
+   | PA5 | SI |
+   | PA3 | CS |
+   | +3.3V | VCC |
+
 ## Part 1 Overview:
   
   The goal of part 1 is to build the essential parts of a simple embedded ethernet device by providing a DHCP client and a TCP server. 
-  
-  A Texas Instruments (TI) TM4C123GH6PM microcontroller is used along with an ENC28J60 for interfacing with ethernet.
   
 ## Part 2 Overview: 
   
