@@ -7,19 +7,20 @@
 
 #include "ethernet.h"
 
-#define GREEN_LED PORTF,   3
-#define BLUE_LED PORTF,    2
+#define GREEN_LED PORTF, 3
+#define BLUE_LED  PORTF, 2
 
 // Buffer is configured as follows
 // Receive buffer starts at 0x0000 (bottom 6666 bytes of 8K space)
 // Transmit buffer at 01A0A (top 1526 bytes of 8K space)
-
 uint8_t nextPacketLsb = 0x00;
 uint8_t nextPacketMsb = 0x00;
 uint8_t sequenceId    = 1;
 uint32_t sum = 0;
 uint8_t macAddress[HW_ADD_LENGTH]       = {2,3,4,5,6,UNIQUE_ID};
 uint8_t serverMacAddress[HW_ADD_LENGTH] = {0,0,0,0,0,0};
+uint8_t broadcastAddress[HW_ADD_LENGTH] = {255,255,255,255,255,255};
+uint8_t unicastAddress[HW_ADD_LENGTH]   = {0,0,0,0,0,0};
 uint8_t ipAddress[IP_ADD_LENGTH]        = {192, 168, 1, UNIQUE_ID};
 uint8_t serverIpAddress[IP_ADD_LENGTH]  = {0,0,0,0};
 uint8_t ipSubnetMask[IP_ADD_LENGTH]     = {255,255,255,0};
@@ -27,13 +28,13 @@ uint8_t ipGwAddress[IP_ADD_LENGTH]      = {192, 168, 1, 1};
 uint8_t ipDnsAddress[IP_ADD_LENGTH]     = {192, 168, 1, 1};
 bool dhcpEnabled = true;
 
-void etherCsOn()
+void etherCsOn(void)
 {
     setPinValue(CS, 0);
     _delay_cycles(4);
 }
 
-void etherCsOff()
+void etherCsOff(void)
 {
     setPinValue(CS, 1);
 }
@@ -111,7 +112,7 @@ uint16_t etherReadPhy(uint8_t reg)
     return data;
 }
 
-void etherWriteMemStart()
+void etherWriteMemStart(void)
 {
     etherCsOn();
     writeSpi0Data(0x7A);
@@ -124,25 +125,25 @@ void etherWriteMem(uint8_t data)
     readSpi0Data();
 }
 
-void etherWriteMemStop()
+void etherWriteMemStop(void)
 {
     etherCsOff();
 }
 
-void etherReadMemStart()
+void etherReadMemStart(void)
 {
     etherCsOn();
     writeSpi0Data(0x3A);
     readSpi0Data();
 }
 
-uint8_t etherReadMem()
+uint8_t etherReadMem(void)
 {
     writeSpi0Data(0);
     return readSpi0Data();
 }
 
-void etherReadMemStop()
+void etherReadMemStop(void)
 {
     etherCsOff();
 }
@@ -258,19 +259,19 @@ void etherInit(uint16_t mode)
 }
 
 // Returns true if link is up
-bool etherIsLinkUp()
+bool etherIsLinkUp(void)
 {
     return (etherReadPhy(PHSTAT1) & LSTAT) != 0;
 }
 
 // Returns TRUE if packet received
-bool etherIsDataAvailable()
+bool etherIsDataAvailable(void)
 {
     return ((etherReadReg(EIR) & PKTIF) != 0);
 }
 
 // Returns true if rx buffer overflowed after correcting the problem
-bool etherIsOverflow()
+bool etherIsOverflow(void)
 {
     bool err;
     err = (etherReadReg(EIR) & RXERIF) != 0;
@@ -397,7 +398,7 @@ void etherSumWords(void* data, uint16_t sizeInBytes)
 }
 
 // Completes 1's compliment addition by folding carries back into field
-uint16_t getEtherChecksum()
+uint16_t getEtherChecksum(void)
 {
     uint16_t result;
     // this is based on rfc1071
@@ -694,33 +695,33 @@ void etherSendUdpResponse(uint8_t packet[], uint8_t* udpData, uint8_t udpSize)
     etherPutPacket((uint8_t *)ether, 22 + ((ip->revSize & 0xF) * 4) + udpSize);
 }
 
-uint16_t etherGetId()
+uint16_t etherGetId(void)
 {
     return htons(sequenceId);
 }
 
-void etherIncId()
+void etherIncId(void)
 {
     sequenceId++;
 }
 
 // Enable or disable DHCP mode
-void etherEnableDhcpMode()
+void etherEnableDhcpMode(void)
 {
     dhcpEnabled = true;
 }
 
-void etherDisableDhcpMode()
+void etherDisableDhcpMode(void)
 {
     dhcpEnabled = false;
 }
 
-bool etherIsDhcpEnabled()
+bool etherIsDhcpEnabled(void)
 {
     return dhcpEnabled;
 }
 // Determines if the IP address is valid
-bool etherIsIpValid()
+bool etherIsIpValid(void)
 {
     return ipAddress[0] || ipAddress[1] || ipAddress[2] || ipAddress[3];
 }
@@ -776,7 +777,7 @@ void etherGetIpGatewayAddress(uint8_t ip[4])
         ip[i] = ipGwAddress[i];
 }
 
-// Sets MAC address
+// Sets device MAC address
 void etherSetMacAddress(uint8_t mac0, uint8_t mac1, uint8_t mac2, uint8_t mac3, uint8_t mac4, uint8_t mac5)
 {
     macAddress[0] = mac0;
@@ -785,6 +786,17 @@ void etherSetMacAddress(uint8_t mac0, uint8_t mac1, uint8_t mac2, uint8_t mac3, 
     macAddress[3] = mac3;
     macAddress[4] = mac4;
     macAddress[5] = mac5;
+}
+
+// Sets DHCP servers MAC address
+void etherSetServerMacAddress(uint8_t mac0, uint8_t mac1, uint8_t mac2, uint8_t mac3, uint8_t mac4, uint8_t mac5)
+{
+    serverMacAddress[0] = mac0;
+    serverMacAddress[1] = mac1;
+    serverMacAddress[2] = mac2;
+    serverMacAddress[3] = mac3;
+    serverMacAddress[4] = mac4;
+    serverMacAddress[5] = mac5;
 }
 
 // Gets MAC address
@@ -813,12 +825,12 @@ void getDnsAddress(uint8_t dns[4])
 }
 
 // Function to Ethernet Connection Information
-void displayConnectionInfo()
+void displayConnectionInfo(void)
 {
     char str[10];
-    uint8_t i;
-    uint8_t mac[6];
-    uint8_t ip[4];
+    uint8_t i, mac[6], ip[4];
+
+    sendUart0String("\r\nStarting eth0\r\n");
 
     // Retrieve Mac Address
     etherGetMacAddress(mac);
@@ -895,7 +907,7 @@ void displayConnectionInfo()
 
 
 // Function to Ethernet Connection Information
-void displayIfconfigInfo()
+void displayIfconfigInfo(void)
 {
     char str[10];
     uint8_t i;
@@ -982,20 +994,25 @@ void displayIfconfigInfo()
 }
 
 // Init Ethernet Interface
-void initEthernetInterface()
+void initEthernetInterface(bool ok)
 {
     etherSetMacAddress(2, 3, 4, 5, 6, UNIQUE_ID);
     etherInit(ETHER_UNICAST | ETHER_BROADCAST | ETHER_HALFDUPLEX);
-    etherDisableDhcpMode();
-    etherSetIpAddress(192, 168, 1, UNIQUE_ID);
-    etherSetIpSubnetMask(255, 255, 255, 0);
-    etherSetIpGatewayAddress(192, 168, 1, 1);
-    setDnsAddress(0, 0, 0, 0);
+    if(ok)
+        etherEnableDhcpMode();
+    else
+    {
+        etherDisableDhcpMode();
+        etherSetIpAddress(192, 168, 1, UNIQUE_ID);
+        etherSetIpSubnetMask(255, 255, 255, 0);
+        etherSetIpGatewayAddress(192, 168, 1, 1);
+        setDnsAddress(0, 0, 0, 0);
+    }
     waitMicrosecond(100000);
 }
 
 // Function sets Network Addresses back to their static values
-void setStaticNetworkAddresses()
+void setStaticNetworkAddresses(void)
 {
     // etherSetMacAddress(2, 3, 4, 5, 6, UNIQUE_ID);
     etherDisableDhcpMode();

@@ -19,8 +19,11 @@
 //-----------------------------------------------------------------------------
 // Device includes, defines, and assembler directives
 //-----------------------------------------------------------------------------
-
+#include <stdint.h>
+#include <stdbool.h>
+#include "tm4c123gh6pm.h"
 #include "spi.h"
+#include "gpio.h"
 
 // Pins
 #define SSI0TX  PORTA, 5
@@ -42,14 +45,18 @@ void initSpi0(uint32_t pinMask)
     // Enable clocks
     SYSCTL_RCGCSSI_R |= SYSCTL_RCGCSSI_R0;
     _delay_cycles(3);
+
     enablePort(PORTA);
+    _delay_cycles(3);
 
     // Configure SSI1 pins for SPI configuration
     selectPinPushPullOutput(SSI0TX);
     setPinAuxFunction(SSI0TX, GPIO_PCTL_PA5_SSI0TX);
+
     selectPinPushPullOutput(SSI0CLK);
     setPinAuxFunction(SSI0CLK, GPIO_PCTL_PA2_SSI0CLK);
     enablePinPullup(SSI0CLK);
+
     if (pinMask & USE_SSI0_FSS)
     {
         selectPinPushPullOutput(SSI0FSS);
@@ -95,7 +102,7 @@ void writeSpi0Data(uint32_t data)
 }
 
 // Reads data from the rx buffer after a write
-uint32_t readSpi0Data()
+uint32_t readSpi0Data(void)
 {
     return SSI0_DR_R;
 }

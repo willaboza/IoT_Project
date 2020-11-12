@@ -22,6 +22,14 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+//
+// Pins (Modify these values as necessary)
+//
+#define RED_LED PORTF,     1
+#define BLUE_LED PORTF,    2
+#define GREEN_LED PORTF,   3
+#define PUSH_BUTTON PORTF, 4
+
 // Enum values set to bitband address of GPIO_PORTx_DATA_R register
 typedef enum _PORT
 {

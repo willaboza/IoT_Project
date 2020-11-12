@@ -8,13 +8,7 @@
 #ifndef TIMERS_H_
 #define TIMERS_H_
 
-//List of Libraries to Include
-#include <stdint.h>
-#include <stdio.h>
-#include <stdbool.h>
-#include "tm4c123gh6pm.h"
-#include "gpio.h"
-#include "uart.h"
+#include "timers.h"
 
 #define NUM_TIMERS 10
 
@@ -33,21 +27,17 @@ extern uint32_t ticks[NUM_TIMERS];
 extern bool reload[NUM_TIMERS];
 extern uint8_t dhcpRequestsSent;
 
-void initTimer();
+void initTimer(void);
 bool startOneShotTimer(_callback callback, uint32_t seconds);
 bool startPeriodicTimer(_callback callback, uint32_t seconds);
 bool stopTimer(_callback callback);
 bool restartTimer(_callback callback);
-void resetAllTimers();
-void tickIsr();
-uint32_t random32();
-void renewalTimer();
-void rebindTimer();
-void arpResponseTimer();
-void waitTimer();
-void renewRetransmitTimer();
-void rebindRetransmitTimer();
-void mqttPing();
-
+void resetAllTimers(void);
+void tickIsr(void);
+uint32_t random32(void);
+void mqttPing(void);
+void clearRedLed(void);
+void clearBlueLed(void);
+void clearGreenLed(void);
 
 #endif /* TIMERS_H_ */

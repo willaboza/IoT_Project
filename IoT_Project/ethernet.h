@@ -19,8 +19,9 @@
 #include "tm4c123gh6pm.h"
 #include "wait.h"
 #include "gpio.h"
-#include "uart.h"
+#include "uart0.h"
 #include "spi.h"
+#include "mqtt.h"
 
 // Max packet is calculated as:
 // Ether frame header (18) + Max MTU (1500) + CRC (4)
@@ -133,13 +134,14 @@
 // ------------------------------------------------------------------------------
 //  Globals
 // ------------------------------------------------------------------------------
-
 extern uint8_t  nextPacketLsb;
 extern uint8_t  nextPacketMsb;
 extern uint8_t  sequenceId;
 extern uint32_t sum;
 extern uint8_t  macAddress[HW_ADD_LENGTH];
 extern uint8_t  serverMacAddress[HW_ADD_LENGTH];
+extern uint8_t  broadcastAddress[HW_ADD_LENGTH];
+extern uint8_t  unicastAddress[HW_ADD_LENGTH];
 extern uint8_t  serverIpAddress[IP_ADD_LENGTH];
 extern uint8_t  ipAddress[IP_ADD_LENGTH];
 extern uint8_t  ipSubnetMask[IP_ADD_LENGTH];
@@ -223,10 +225,10 @@ typedef struct _udpFrame // 8 bytes
 //-----------------------------------------------------------------------------
 
 void etherInit(uint16_t mode);
-bool etherIsLinkUp();
+bool etherIsLinkUp(void);
 
-bool etherIsDataAvailable();
-bool etherIsOverflow();
+bool etherIsDataAvailable(void);
+bool etherIsOverflow(void);
 uint16_t etherGetPacket(uint8_t packet[], uint16_t maxSize);
 bool etherPutPacket(uint8_t packet[], uint16_t size);
 
@@ -245,10 +247,10 @@ bool etherIsUdp(uint8_t packet[]);
 uint8_t* etherGetUdpData(uint8_t packet[]);
 void etherSendUdpResponse(uint8_t packet[], uint8_t* udpData, uint8_t udpSize);
 
-void etherEnableDhcpMode();
-void etherDisableDhcpMode();
-bool etherIsDhcpEnabled();
-bool etherIsIpValid();
+void etherEnableDhcpMode(void);
+void etherDisableDhcpMode(void);
+bool etherIsDhcpEnabled(void);
+bool etherIsIpValid(void);
 void etherSetIpAddress(uint8_t ip0, uint8_t ip1, uint8_t ip2, uint8_t ip3);
 void etherGetIpAddress(uint8_t ip[4]);
 void etherSetIpGatewayAddress(uint8_t ip0, uint8_t ip1, uint8_t ip2, uint8_t ip3);
@@ -256,20 +258,21 @@ void etherGetIpGatewayAddress(uint8_t ip[4]);
 void etherSetIpSubnetMask(uint8_t mask0, uint8_t mask1, uint8_t mask2, uint8_t mask3);
 void etherGetIpSubnetMask(uint8_t mask[4]);
 void etherSetMacAddress(uint8_t mac0, uint8_t mac1, uint8_t mac2, uint8_t mac3, uint8_t mac4, uint8_t mac5);
+void etherSetServerMacAddress(uint8_t mac0, uint8_t mac1, uint8_t mac2, uint8_t mac3, uint8_t mac4, uint8_t mac5);
 void etherGetMacAddress(uint8_t mac[6]);
 void etherSumWords(void* data, uint16_t sizeInBytes);
 void etherCalcIpChecksum(ipFrame* ip);
 uint16_t getEtherChecksum();
 void setDnsAddress(uint8_t dns0, uint8_t dns1, uint8_t dns2, uint8_t dns3);
 void getDnsAddress(uint8_t dns[4]);
-void initEthernetInterface();
+void initEthernetInterface(bool ok);
 
 uint16_t htons(uint16_t value);
 #define ntohs htons
 uint32_t htons32(uint32_t value);
 
-void displayConnectionInfo();
-void displayIfconfigInfo();
-void setStaticNetworkAddresses();
+void displayConnectionInfo(void);
+void displayIfconfigInfo(void);
+void setStaticNetworkAddresses(void);
 
 #endif /* ETHERNET_H_ */
