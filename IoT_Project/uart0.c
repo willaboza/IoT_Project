@@ -84,11 +84,10 @@ void sendUart0String(char str[])
     }
 
     UART0_ICR_R = 0x00000FFF;
+
     // Check to see if UART Tx holding register is empty
     if(UART0_FR_R & UART_FR_TXFE  && !(emptyRingBuffer()))
-    {
         UART0_DR_R = readFromQueue(); // "Prime Pump" by writing 1st char to Uart0
-    }
 }
 
 // Add characters to UART0 TX FIFO
@@ -108,11 +107,10 @@ void sendUart0StringLiteral(const char str[])
     }
 
     UART0_ICR_R = 0x00000FFF;
+
     // Check to see if UART Tx holding register is empty
     if(UART0_FR_R & UART_FR_TXFE  && !(emptyRingBuffer()))
-    {
         UART0_DR_R = readFromQueue(); // "Prime Pump" by writing 1st char to Uart0
-    }
 }
 
 // Update current position of writeIndex variable for Ring Buffer
@@ -134,27 +132,19 @@ char readFromQueue(void)
 // Returns true if ring buffer is EMPTY
 bool emptyRingBuffer(void)
 {
-    bool ok = false;
-
     if(uart0Info.writeIndex == uart0Info.readIndex)
-    {
-        ok = true;
-    }
+        return true;
 
-    return ok;
+    return false;
 }
 
 // Returns true if ring buffer is FULL
 bool fullRingBuffer(void)
 {
-    bool ok = false;
-
     if(((uart0Info.writeIndex + 1) % QUEUE_BUFFER_LENGTH) == uart0Info.readIndex)
-    {
-        ok = true;
-    }
+        return true;
 
-    return ok;
+    return false;
 }
 
 // Function to Print Main Menu
@@ -204,7 +194,5 @@ void uart0Isr(void)
 
     // Check to see if UART Tx holding register is empty and send next byte of data
     if((UART0_FR_R & UART_FR_TXFE) && !(emptyRingBuffer()))
-    {
         UART0_DR_R = readFromQueue();
-    }
 }

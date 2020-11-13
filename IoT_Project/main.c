@@ -78,7 +78,9 @@ int main(void)
 
     // Display current ifconfig values and send DHCPREQUEST if Rebooting device
     if(readDeviceConfig())
-        (*dhcpLookup(nextDhcpState = INIT_REBOOT, DHCPREQUEST_EVENT))(data); // Set-up DHCP state
+    {
+        // (*dhcpLookup(nextDhcpState = INIT_REBOOT, DHCPREQUEST_EVENT))(data); // Set-up DHCP state
+    }
 
     //Print Main Menu
     printMainMenu();
@@ -90,10 +92,10 @@ int main(void)
         if(kbhitUart0())
         {
             // Get User Input
-            getsUart0(&userInput);
-
-            // Tokenize User Input
-            parseFields(&userInput);
+            if(getsUart0(&userInput))
+                shellCommands(&userInput, data);
+            else
+                parseFields(&userInput); // Tokenize User Input
         }
 
         // Packet processing if available
@@ -140,13 +142,6 @@ int main(void)
                         startOneShotTimer(waitTimer, 10);
                 }
             }
-        }
-
-        // Start of CLI Commands and Reset User Input
-        if(userInput.endOfString)
-        {
-            shellCommands(&userInput, data);
-            resetUserInput(&userInput);
         }
     }
 }

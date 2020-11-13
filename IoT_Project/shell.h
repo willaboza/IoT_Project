@@ -18,7 +18,7 @@
 //
 // Defines for Constants
 //
-#define MAX_CHARS  80
+#define MAX_CHARS  50
 #define MAX_FIELDS 5
 
 //
@@ -29,16 +29,17 @@ typedef struct _USER_DATA
     bool    delimeter;
     bool    endOfString;
     uint8_t fieldCount;
+    uint8_t startCount;
     uint8_t characterCount;
     uint8_t fieldPosition[MAX_FIELDS];
     char    fieldType[MAX_FIELDS];
-    char    buffer[MAX_CHARS + 1];
+    char    buffer[MAX_CHARS];
 } USER_DATA;
 
 //
 // Definitions
 //
-void getsUart0(USER_DATA* data);
+bool getsUart0(USER_DATA* data);
 void parseFields(USER_DATA* data);
 void resetUserInput(USER_DATA* data);
 bool isCommand(USER_DATA** data, const char strCommand[], uint8_t minArguments);
