@@ -24,7 +24,7 @@
 #include "timers.h"
 
 // Function to get Input from Terminal
-void getsUart0(USER_DATA* data)
+bool getsUart0(USER_DATA* data)
 {
     char c;
 
@@ -33,28 +33,48 @@ void getsUart0(USER_DATA* data)
     UART0_ICR_R = 0xFFF; // Clear any UART0 interrupts
 
     // Determine if user input is complete
-    if((c == 13) || (data->characterCount == QUEUE_BUFFER_LENGTH))
+    if((c == 13) || ((data->characterCount + 1) % MAX_CHARS == data->startCount))
     {
-        data->buffer[data->characterCount++] = '\0';
-        data->endOfString = true;
+        data->buffer[data->characterCount] = '\0';
+        data->startCount = data->characterCount = (data->characterCount + 1) % MAX_CHARS;
         sendUart0String("\r\n");
+        return true;
     }
-    else if (data->characterCount > 0 && (c == 8 || c == 127)) // Decrement count if invalid character entered
+
+    if(data->characterCount == data->startCount)
     {
-        data->characterCount--; // Decrement character count
-        sendUart0String(" \b"); // Removes character from terminal display
+        data->fieldCount = 0;
+        data->delimeter = true;
     }
-    else if (c >= ' ' && c < 127) // Converts capital letter to lower case (if necessary)
+
+    if(c == 8 || c == 127) // Decrement count if invalid character entered
+    {
+        if(data->characterCount != data->startCount)
+        {
+            if(data->characterCount != 0)
+                data->characterCount--;
+            else
+                data->characterCount = MAX_CHARS;
+
+            // Removes character from terminal display
+            sendUart0String("\b \b");
+        }
+    }
+    else if(c >= ' ' && c < 127) // Converts capital letter to lower case (if necessary)
     {
         if('A' <= c && c <= 'Z')
         {
-            data->buffer[data->characterCount++] = c + 32;
+            data->buffer[data->characterCount] = c + 32;
+            data->characterCount = (data->characterCount + 1) % MAX_CHARS;
         }
         else
         {
-            data->buffer[data->characterCount++] = c;
+            data->buffer[data->characterCount] = c;
+            data->characterCount = (data->characterCount + 1) % MAX_CHARS;
         }
     }
+
+    return false;
 }
 
 // Function to Tokenize Strings
@@ -81,7 +101,7 @@ void parseFields(USER_DATA* data)
         {
             data->fieldPosition[fieldIndex] = count;
             data->fieldType[fieldIndex] = 'A';
-            data->fieldCount = ++fieldIndex;
+            data->fieldCount += 1;
             data->delimeter = false;
         }
     }
@@ -91,7 +111,7 @@ void parseFields(USER_DATA* data)
         {
             data->fieldPosition[fieldIndex] = count;
             data->fieldType[fieldIndex] = 'N';
-            data->fieldCount = ++fieldIndex;
+            data->fieldCount += 1;
             data->delimeter = false;
         }
     }
@@ -160,6 +180,7 @@ void getFieldString(USER_DATA** data, char fieldString[], uint8_t fieldNumber)
     while((*data)->buffer[offset] != '\0')
     {
         fieldString[index++] = (*data)->buffer[offset++];
+        offset %= MAX_CHARS;
     }
 
     // Add NULL to terminate string
@@ -169,45 +190,61 @@ void getFieldString(USER_DATA** data, char fieldString[], uint8_t fieldNumber)
 // Function to Return a Token as an Integer
 int32_t getFieldInteger(USER_DATA** data, uint8_t fieldNumber)
 {
-    int32_t num;
     uint8_t offset, index = 0;
-    char copy[MAX_CHARS + 1];
+    char copy[MAX_CHARS];
 
     offset = (*data)->fieldPosition[fieldNumber];  // Get position of first character in string of interest
 
     while((*data)->buffer[offset] != '\0')
     {
         copy[index++] = (*data)->buffer[offset++];
+        offset %= MAX_CHARS;
     }
 
     copy[index] = '\0';
 
-    num = atoi(copy);
-
-    return num;
+    return atoi(copy);
 }
 
 // Function Used to Determine if Correct Command Entered
 bool isCommand(USER_DATA** data, const char strCommand[], uint8_t minArguments)
 {
-    bool command = false;
-    char copy[MAX_CHARS + 1];
-    uint8_t offset = 0, index = 0;
+    bool ok = false;
+    int val;
+    uint8_t c1, c2, offset, index = 0;
 
-    while((*data)->buffer[offset] != '\0')
+    if((*data)->fieldCount < minArguments)
+        return false;
+
+    offset = (*data)->fieldPosition[0];
+
+    while((c1 = strCommand[index++]) != '\0')
     {
-        copy[index++] = (*data)->buffer[offset++];
+        c2 = (*data)->buffer[offset++];
+        val = c1 - c2;
+
+        if(val != 0 || c2 == 0)
+            return false;
+
+        offset %= MAX_CHARS;
+        ok = true;
     }
 
-    copy[index] = '\0';
-
-    if((strcmp(strCommand, copy) == 0) && ((*data)->fieldCount >= minArguments))
-    {
-        command = true;
-    }
-
-    return command;
+    return ok;
 }
+
+/*
+// Returns value of current argument for shell commands
+uint8_t getArgument(USER_DATA** data)
+{
+    // Handle edge case of no more input commands to process
+    if((*data)->fieldCount == 0)
+        return 0;
+
+
+    (*data)->fieldCount--;
+}
+*/
 
 // Function to process incoming MQTT Messages
 void processMqttMessage(uint8_t packet[], USER_DATA* topic, USER_DATA* data)
@@ -290,10 +327,10 @@ bool isMqttCommand(USER_DATA* data, const char strCommand[], uint8_t minArgument
 // Function to reset User Input for next command
 void resetUserInput(USER_DATA* data)
 {
+    data->startCount = 0;
     data->characterCount = 0;
     data->fieldCount = 0;
     data->delimeter = true;
-    data->endOfString = false;
 }
 
 // Function to Print Current Subscribed topics
@@ -401,7 +438,7 @@ void shellCommands(USER_DATA* userInput, uint8_t packet[])
     }
     else if(isCommand(&userInput, "ifconfig", 1))
     {
-        userInput->fieldCount = 0;
+        // userInput->fieldCount = 0;
 
         // displays current MAC, IP, GW, SN, DNS, and DHCP mode
         displayIfconfigInfo();
