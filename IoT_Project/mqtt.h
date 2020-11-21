@@ -1,24 +1,19 @@
-/*
- * mqtt.h
- *
- *  Created on: Apr 14, 2020
- *      Author: William Bozarth
- */
+// mqtt.h
+// William Bozarth
+// Created on: April 14, 2020
+
+//-----------------------------------------------------------------------------
+// Hardware Target
+//-----------------------------------------------------------------------------
+
+// Target Platform: EK-TM4C123GXL Evaluation Board
+// Target uC:       TM4C123GH6PM
+// System Clock:    40 MHz
 
 #ifndef MQTT_H_
 #define MQTT_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include "tm4c123gh6pm.h"
 #include "mqtt.h"
-#include "ethernet.h"
-#include "shell.h"
-#include "tcp.h"
-#include "uart0.h"
 
 #define KEEP_ALIVE_TIME 120 // Keep Alive time for MQTT in seconds
 #define MAX_BUFFER_SIZE 80

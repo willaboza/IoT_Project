@@ -1,10 +1,14 @@
-/*
- * ethernet.h
- *
- *  Created on: Feb 12, 2020 by William Bozarth
- *      Author: Jason Losh
- *
- */
+// ethernet.h
+// William Bozarth
+// Created on: February 12, 2020
+
+//-----------------------------------------------------------------------------
+// Hardware Target
+//-----------------------------------------------------------------------------
+
+// Target Platform: EK-TM4C123GXL Evaluation Board
+// Target uC:       TM4C123GH6PM
+// System Clock:    40 MHz
 
 #ifndef ETHERNET_H_
 #define ETHERNET_H_
@@ -242,6 +246,10 @@ bool etherIsArpRequest(uint8_t packet[]);
 bool etherIsArpResponse(uint8_t packet[]);
 void etherSendArpResponse(uint8_t packet[]);
 void etherSendArpRequest(uint8_t packet[]);
+void sendGratuitousArpResponse(uint8_t packet[]);
+bool etherIsGratuitousResponse(uint8_t packet[]);
+void sendArpProbe(uint8_t packet[]);
+void sendArpAnnouncement(uint8_t packet[]);
 
 bool etherIsUdp(uint8_t packet[]);
 uint8_t* etherGetUdpData(uint8_t packet[]);

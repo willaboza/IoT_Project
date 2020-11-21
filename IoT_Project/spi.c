@@ -40,7 +40,7 @@
 //-----------------------------------------------------------------------------
 
 // Initialize SPI0
-void initSpi0(uint32_t pinMask)
+void initSpi0(uint32_t pinMask, uint32_t baudRate, uint32_t fcyc)
 {
     // Enable clocks
     SYSCTL_RCGCSSI_R |= SYSCTL_RCGCSSI_R0;
@@ -73,6 +73,9 @@ void initSpi0(uint32_t pinMask)
     SSI0_CR1_R = 0;                                    // select master mode
     SSI0_CC_R = 0;                                     // select system clock as the clock source
     SSI0_CR0_R = SSI_CR0_FRF_MOTO | SSI_CR0_DSS_8;     // set SR=0, 8-bit
+
+    setSpi0BaudRate(baudRate, fcyc);
+    setSpi0Mode(0, 0);
 }
 
 // Set baud rate as function of instruction cycle frequency

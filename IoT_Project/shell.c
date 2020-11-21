@@ -22,6 +22,7 @@
 #include "shell.h"
 #include "reboot.h"
 #include "timers.h"
+#include "tcp.h"
 
 // Function to get Input from Terminal
 bool getsUart0(USER_DATA* data)
@@ -375,7 +376,8 @@ void shellCommands(USER_DATA* userInput, uint8_t packet[])
             writeEeprom(0x0010, 0xFFFFFFFF); // Erase DHCP Mode in EEPROM
             setStaticNetworkAddresses();     // Update ifconfig
             etherDisableDhcpMode();
-            (*dhcpLookup(NONE, NO_EVENT))(packet);
+            (*dhcpLookup(NONE, NO_EVENT))(packet); // Send DHCPRELEASE
+            sendArpAnnouncement(packet);           // Send ARP announcement to update network of IP address in use
         }
         else if(strcmp(token, "refresh") == 0) // Refresh Current IP address (if in DHCP mode)
         {
@@ -399,41 +401,41 @@ void shellCommands(USER_DATA* userInput, uint8_t packet[])
     }
     else if(isCommand(&userInput, "set", 6))
     {
-        uint8_t add1, add2, add3, add4;
+        uint8_t add[4];
 
         // Retrieve network configuration parameter
         getFieldString(&userInput, token, 1);
 
         // Get Network Address
-        add1 = getFieldInteger(&userInput, 2);
-        add2 = getFieldInteger(&userInput, 3);
-        add3 = getFieldInteger(&userInput, 4);
-        add4 = getFieldInteger(&userInput, 5);
+        add[0] = getFieldInteger(&userInput, 2);
+        add[1] = getFieldInteger(&userInput, 3);
+        add[2] = getFieldInteger(&userInput, 4);
+        add[3] = getFieldInteger(&userInput, 5);
 
         if(!dhcpEnabled && strcmp(token, "ip") == 0)      // Set Internet Protocol address
         {
-            etherSetIpAddress(add1, add2, add3, add4);
-            storeAddressEeprom(add1, add2, add3, add4, 0x0011);
+            etherSetIpAddress(add[0], add[1], add[2], add[3]);
+            storeAddressEeprom(add, 0x0011, 4);
         }
         else if(!dhcpEnabled && strcmp(token, "gw") == 0) // Set Gateway address
         {
-            etherSetIpGatewayAddress(add1, add2, add3, add4);
-            storeAddressEeprom(add1, add2, add3, add4, 0x0012);
+            etherSetIpGatewayAddress(add[0], add[1], add[2], add[3]);
+            storeAddressEeprom(add, 0x0012, 4);
         }
         else if(!dhcpEnabled && strcmp(token, "dns") == 0) // Set Domain Name System address
         {
-            setDnsAddress(add1, add2, add3, add4);
-            storeAddressEeprom(add1, add2, add3, add4, 0x0013);
+            setDnsAddress(add[0], add[1], add[2], add[3]);
+            storeAddressEeprom(add, 0x0013, 4);
         }
         else if(!dhcpEnabled && strcmp(token, "sn") == 0) // Set Sub-net Mask
         {
-            etherSetIpSubnetMask(add1, add2, add3, add4);
-            storeAddressEeprom(add1, add2, add3, add4, 0x0014);
+            etherSetIpSubnetMask(add[0], add[1], add[2], add[3]);
+            storeAddressEeprom(add, 0x0014, 4);
         }
         else if(strcmp(token, "mqtt") == 0)              // Set Sub-net Mask
         {
-            setMqttAddress(add1, add2, add3, add4);
-            storeAddressEeprom(add1, add2, add3, add4, 0x0015);
+            setMqttAddress(add[0], add[1], add[2], add[3]);
+            storeAddressEeprom(add, 0x0015, 4);
         }
     }
     else if(isCommand(&userInput, "ifconfig", 1))
@@ -493,10 +495,6 @@ void shellCommands(USER_DATA* userInput, uint8_t packet[])
     {
         // Send MQTT Disconnect Packet
         mqttDisconnectMessage(packet, 0x5018);
-
-        // Change TCP State
-        establishedState = false;
-        closeState = true;
 
         // Stop Ping Request Timer
         stopTimer(mqttPing);

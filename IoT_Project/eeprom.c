@@ -1,9 +1,14 @@
-/*
- * eeprom.c
- *
- *  Created on: Feb 12, 2020
- *      Author: willi
- */
+// eeprom.c
+// William Bozarth
+// Created on: February 12, 2020
+
+//-----------------------------------------------------------------------------
+// Hardware Target
+//-----------------------------------------------------------------------------
+
+// Target Platform: EK-TM4C123GXL Evaluation Board
+// Target uC:       TM4C123GH6PM
+// System Clock:    40 MHz
 
 #include "eeprom.h"
 
@@ -45,21 +50,34 @@ void getAddressInfo(uint8_t add[], uint8_t mem, uint8_t SIZE)
     // Retrieve stored address
     for(i = 0; i < SIZE; i++)
     {
-        add[i] = (num >> (24 - i * 8));
+        if(i % 4 == 0 && i > 0)
+        {
+            mem += 4;
+            num = readEeprom(mem);
+        }
+
+        add[i] = (num >> (24 - (i % 4) * 8));
     }
 }
 
 // Function to store Address in EEPROM
-void storeAddressEeprom(uint8_t add1, uint8_t add2, uint8_t add3, uint8_t add4, uint16_t block)
+void storeAddressEeprom(uint8_t add[], uint16_t block, uint8_t SIZE)
 {
+    uint8_t i;
     uint32_t num = 0;
 
-    num |= (add1 << 24);
-    num |= (add2 << 16);
-    num |= (add3 << 8);
-    num |= add4;
+    // Store Address in EEPROM
+    for(i = 0; i < SIZE; i++)
+    {
+        num |= (add[i] << (24 - (i % 4) * 8));
 
-    writeEeprom(block, num);
+        if((i + 1) % 4 == 0 || i == SIZE - 1)
+        {
+            writeEeprom(block, num);
+            block += 4;
+            num = 0;
+        }
+    }
 }
 
 // Function "erases" perviously stored values in EEPROM

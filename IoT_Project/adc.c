@@ -19,7 +19,7 @@
 
 #include "adc.h"
 
-void initAdc()
+void initAdc(void)
 {
     // Enable clocks
     SYSCTL_RCGCADC_R |= SYSCTL_RCGCADC_R0;
@@ -42,14 +42,14 @@ void initAdc()
     ADC0_ACTSS_R |= ADC_ACTSS_ASEN3;                 // enable SS3 for operation
 }
 
-int16_t readAdc0Ss3()
+int16_t readAdc0Ss3(void)
 {
     ADC0_PSSI_R |= ADC_PSSI_SS3;                     // set start bit
     while (ADC0_ACTSS_R & ADC_ACTSS_BUSY);           // wait until SS3 is not busy
     return ADC0_SSFIFO3_R;                           // get single result from the FIFO
 }
 
-uint8_t instantTemp()
+uint8_t instantTemp(void)
 {
     uint8_t temperature;
     uint16_t raw;

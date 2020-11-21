@@ -32,6 +32,8 @@ dhcpStateMachine stateTransitions [] =
 {
     {NONE,        NO_EVENT,            (_dhcpCallback)sendDhcpReleaseMessage},  // Handles when DHCP mode disabled
     {INIT,        DHCPDISCOVERY_EVENT, (_dhcpCallback)sendDhcpDiscoverMessage}, // DiscoverHandler
+    {INIT,        DHCPINFORM_EVENT,    (_dhcpCallback)sendDhcpInformMessage},   //
+    {INIT,        DHCPACK_EVENT,       (_dhcpCallback)exitDhcpMode},            //
     {SELECTING,   DHCPOFFER_EVENT,     (_dhcpCallback)sendDhcpRequestMessage},  //
     {REQUESTING,  DHCPACK_EVENT,       (_dhcpCallback)LeaseAddressHandler},     //
     {REQUESTING,  DHCPNACK_EVENT,      (_dhcpCallback)dhcpNackHandler},         //
@@ -51,8 +53,6 @@ dhcpStateMachine stateTransitions [] =
 // Function to determine if DHCP mode ENABLED or DISABLED
 bool readDeviceConfig(void)
 {
-    bool ok;
-
     if(readEeprom(0x0010) == 0xFFFFFFFF) // If statement evaluates to TRUE if NOT in DHCP Mode
     {
         // Initialize ENCJ2860 module
@@ -61,16 +61,19 @@ bool readDeviceConfig(void)
         // Output to terminal configuration info
         displayConnectionInfo();
 
-        ok = false;
+        return false;
     }
     else // DHCP Mode is enabled
     {
+        nextDhcpState = INIT_REBOOT;
+
         // Check if address info is stored in EEPROM
-        getAddressInfo(ipAddress, 0x0011, 4);       // Get IP address
-        getAddressInfo(ipGwAddress, 0x0012, 4);     // Get GW address
-        getAddressInfo(ipDnsAddress, 0x0013, 4);    // Get DNS address
-        getAddressInfo(serverIpAddress, 0x0013, 4); // Get DHCP SERVER address
-        getAddressInfo(ipSubnetMask, 0x0014, 4);    // Get SN mask
+        getAddressInfo(ipAddress, 0x0011, 4);        // Get IP address
+        getAddressInfo(ipGwAddress, 0x0012, 4);      // Get GW address
+        getAddressInfo(ipDnsAddress, 0x0013, 4);     // Get DNS address
+        getAddressInfo(serverIpAddress, 0x0013, 4);  // Get DHCP SERVER address
+        getAddressInfo(ipSubnetMask, 0x0014, 4);     // Get SN mask
+        getAddressInfo(serverMacAddress, 0x0015, 6); // Get Server MAC Address
 
         // Initialize ENCJ2860 module
         initEthernetInterface(true);
@@ -78,14 +81,12 @@ bool readDeviceConfig(void)
         // Output to terminal configuration info
         displayConnectionInfo();
 
-        ok = true;
+        return true;
     }
-
-    return ok;
 }
 
 // Handles exiting dhcp mode
-void exitDhcpMode(void){return;}
+void exitDhcpMode(void){nextDhcpState = INIT;}
 
 // Transmit DHCPDISCOVER message
 void sendDhcpDiscoverMessage(uint8_t packet[])
@@ -367,14 +368,15 @@ void sendDhcpRequestMessage(uint8_t packet[])
     case INIT_REBOOT:
         setDhcpAddressInfo(&ether->destAddress, broadcastAddress, HW_ADD_LENGTH);
         setDhcpAddressInfo(&ether->sourceAddress, macAddress, HW_ADD_LENGTH);
-        setDhcpAddressInfo(&ip->destIp, broadcastAddress, IP_ADD_LENGTH);
-        setDhcpAddressInfo(&ip->sourceIp, unicastAddress, IP_ADD_LENGTH);
+        setDhcpAddressInfo(&ip->destIp, serverIpAddress, IP_ADD_LENGTH);
+        setDhcpAddressInfo(&ip->sourceIp, ipAddress, IP_ADD_LENGTH);
 
         // Set next state
         nextDhcpState = REBOOTING;
         break;
     case BOUND:
-        setDhcpAddressInfo(&ether->destAddress, broadcastAddress, HW_ADD_LENGTH);
+        //setDhcpAddressInfo(&ether->destAddress, broadcastAddress, HW_ADD_LENGTH);
+        setDhcpAddressInfo(&ether->destAddress, serverMacAddress, HW_ADD_LENGTH);
         setDhcpAddressInfo(&ether->sourceAddress, macAddress, HW_ADD_LENGTH);
         setDhcpAddressInfo(&ip->destIp, serverIpAddress, IP_ADD_LENGTH);
         setDhcpAddressInfo(&ip->sourceIp, ipAddress, IP_ADD_LENGTH);
@@ -421,7 +423,7 @@ void sendDhcpRequestMessage(uint8_t packet[])
         dhcp->xid = transactionId = htons32(random32());
     dhcp->secs  = 0;
     if(nextDhcpState == RENEWING)
-        dhcp->flags = htons(0x8000); // Unicast
+        dhcp->flags = htons(0x0000); // Unicast
     else
         dhcp->flags = htons(0x8000); // Broadcast
 
@@ -877,7 +879,7 @@ void LeaseAddressHandler(uint8_t packet[])
     startOneShotTimer(rebindTimer, ((leaseTime * 7) / (8 * LEASE_TIME_DIVISOR)));
 
     // Send Gratuitous ARP Request
-    etherSendArpRequest(packet);
+    sendArpProbe(packet);
 
     // Start ARP Response timer
     startOneShotTimer(arpResponseTimer, 2);
@@ -942,11 +944,20 @@ void leaseExpHandler(void)
 // 2-Second Timer to wait for any A
 void arpResponseTimer(void)
 {
+    uint8_t data[MAX_PACKET_SIZE] = {0};
+
+    sendArpAnnouncement(data);
+
+    stopTimer(arpResponseTimer);
+
     // Store device configuration information
-    storeAddressEeprom(ipAddress[0], ipAddress[1], ipAddress[2], ipAddress[3], 0x0011);                         // Store device IP address
-    storeAddressEeprom(ipGwAddress[0], ipGwAddress[1], ipGwAddress[2], ipGwAddress[3], 0x0012);                 // Store GW address
-    storeAddressEeprom(serverIpAddress[0], serverIpAddress[1], serverIpAddress[2], serverIpAddress[3], 0x0013); // Store server IP address
-    storeAddressEeprom(ipSubnetMask[0], ipSubnetMask[1], ipSubnetMask[2], ipSubnetMask[3], 0x0014);             // Store SN mask
+    storeAddressEeprom(ipAddress, 0x0011, 4);        // Store device IP address
+    storeAddressEeprom(ipGwAddress, 0x0012, 4);      // Store GW address
+    storeAddressEeprom(serverIpAddress, 0x0013, 4);  // Store server IP address
+    storeAddressEeprom(ipSubnetMask, 0x0014, 4);     // Store SN mask
+    storeAddressEeprom(serverMacAddress, 0x0015, 6); // Store Server MAC address
+
+    sendGratuitousArpResponse(data);
 
     // Transition to next state
     nextDhcpState = BOUND;

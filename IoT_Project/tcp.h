@@ -1,30 +1,84 @@
-/*
- * tcp.h
- *
- *  Created on: Mar 8, 2020
- *      Author: willi
- *
- *      See RFC793 section 3.1 for TCP Header Format
- */
+// tcp.h
+// William Bozarth
+// Created on: March 8, 2020
+
+//-----------------------------------------------------------------------------
+// Hardware Target
+//-----------------------------------------------------------------------------
+
+// Target Platform: EK-TM4C123GXL Evaluation Board
+// Target uC:       TM4C123GH6PM
+// System Clock:    40 MHz
 
 #ifndef TCP_H_
 #define TCP_H_
 
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <stdio.h>
-#include "tm4c123gh6pm.h"
-#include "ethernet.h"
-#include "timers.h"
-#include "mqtt.h"
+#include "tcp.h"
 
-extern bool listenState;
-extern bool establishedState;
-extern bool closeState;
-extern uint32_t prevSeqNum;
-extern uint32_t prevAckNum;
+typedef struct _transCtrlBlock
+{
+    uint32_t prevSeqNum;
+    uint32_t prevAckNum;
+} transCtrlBlock;
+
+extern transCtrlBlock tcb;
+
+typedef enum
+{
+    FIN = 1,
+    SYN = 2,
+    RST = 4,
+    ACK = 16,
+    FIN_ACK = 17,
+    SYN_ACK = 18,
+    PSH_ACK = 24
+} tcpFlags;
+
+//
+// Enumerations of States
+//
+typedef enum
+{
+    CLOSED,       //
+    LISTEN,       //
+    SYN_RECEIVED, //
+    ESTABLISHED,  //
+    FIN_WAIT_1,   //
+    FIN_WAIT_2,   //
+    CLOSING,      //
+    TIME_WAIT,    //
+    CLOSE_WAIT,   //
+    LAST_ACK      //
+} tcpSysState;
+
+extern tcpSysState nextTcpState;
+
+//
+// Enumerations of Events
+//
+typedef enum
+{
+    PASSIVE_OPEN_EVENT = 0, //
+    FIN_EVENT = 1,          //
+    SYN_EVENT = 2,          //
+    APP_CLOSE_EVENT = 7,    //
+    ACK_EVENT = 16,         //
+    FIN_ACK_EVENT = 17,     //
+    SYN_ACK_EVENT = 18,     //
+    PSH_ACK_EVENT = 24      //
+} tcpSysEvent;
+
+typedef tcpSysState(*_tcpCallback)(uint8_t packet[], uint16_t flags);
+
+//
+// Structures
+//
+typedef struct
+{
+    tcpSysState state;
+    tcpSysEvent event;
+    _tcpCallback eventHandler;
+} tcpStateMachine;
 
 typedef struct _tcpFrame // 20 Bytes in Length
 {
@@ -39,12 +93,17 @@ typedef struct _tcpFrame // 20 Bytes in Length
   uint8_t   data[0];
 } tcpFrame;
 
+void dupTcpMsg(void);
 bool etherIsTcp(uint8_t packet[]);
-uint8_t etherIsTcpMsgType(uint8_t packet[]);
+uint16_t etherIsTcpMsgType(uint8_t packet[]);
 void tcpAckReceived(uint8_t packet[]);
 void sendTcpMessage(uint8_t packet[], uint16_t flags);
 void getTcpData(uint8_t packet[]);
 bool checkForDuplicates(uint8_t packet[]);
 void sendTcpSyn(uint8_t packet[], uint16_t flags, uint16_t port);
+_tcpCallback tcpLookup(tcpSysState state, tcpSysEvent event);
+void setUpTcb(void);
+void tcpEstablished(void);
+void tcpClose(void);
 
 #endif /* TCP_H_ */

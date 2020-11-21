@@ -1,11 +1,27 @@
-/*
- * mqtt.c
- *
- *  Created on: Apr 14, 2020
- *      Author: William Bozarth
- */
+// mqtt.c
+// William Bozarth
+// Created on: April 14, 2020
 
+//-----------------------------------------------------------------------------
+// Hardware Target
+//-----------------------------------------------------------------------------
+
+// Target Platform: EK-TM4C123GXL Evaluation Board
+// Target uC:       TM4C123GH6PM
+// System Clock:    40 MHz
+
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include "tm4c123gh6pm.h"
 #include "mqtt.h"
+#include "ethernet.h"
+#include "shell.h"
+#include "tcp.h"
+#include "uart0.h"
+#include "timers.h"
 
 uint8_t ipMqttAddress[IP_ADD_LENGTH]    = {192,168,1,67};
 uint8_t mqttBrokerMac[HW_ADD_LENGTH]    = {0x04,0xD3,0xB0,0x7F,0x7E};
@@ -143,8 +159,8 @@ void mqttConnectMessage(uint8_t packet[], uint16_t flags)
     tcp->checksum      = 0;               // Set checksum to zero before performing calculation
     tcp->urgentPointer = 0;               // Not used in this class
     tcp->window        = htons(1024);
-    tcp->seqNum = prevSeqNum;
-    tcp->ackNum = prevAckNum;
+    tcp->seqNum = tcb.prevSeqNum;
+    tcp->ackNum = tcb.prevAckNum;
     tcp->dataCtrlFields = htons(flags);
 
     // Connect Packet Type = 1, Flags = 0
@@ -260,8 +276,8 @@ void mqttDisconnectMessage(uint8_t packet[], uint16_t flags)
     tcp->urgentPointer = 0;               // Not used in this class
     tcp->window        = htons(1024);
     tcp->dataCtrlFields = htons(flags);
-    tcp->seqNum = prevSeqNum;
-    tcp->ackNum = prevAckNum;
+    tcp->seqNum = tcb.prevSeqNum;
+    tcp->ackNum = tcb.prevAckNum;
 
     i = 0;
     // DISCONNECT
@@ -339,9 +355,9 @@ void mqttPingRequest(uint8_t packet[], uint16_t flags)
     tcp->urgentPointer = 0;               // Not used in this class
     tcp->window        = htons(1024);
     tcp->dataCtrlFields = htons(flags);
-    tcp->seqNum = prevSeqNum;
-    tcp->ackNum = prevAckNum;
-    prevSeqNum += 1;
+    tcp->seqNum = tcb.prevSeqNum;
+    tcp->ackNum = tcb.prevAckNum;
+    tcb.prevSeqNum += 1;
 
     i = 0;
     // PING REQUEST
@@ -420,8 +436,8 @@ void mqttPublish(uint8_t packet[], uint16_t flags, char topic[], char data[])
     tcp->urgentPointer = 0;               // Not used in this class
     tcp->window        = htons(1024);
     tcp->dataCtrlFields = htons(0x5018);
-    tcp->seqNum = prevSeqNum;
-    tcp->ackNum = prevAckNum;
+    tcp->seqNum = tcb.prevSeqNum;
+    tcp->ackNum = tcb.prevAckNum;
 
     // PUBLISH Packet
     mqtt->control = 0x31; // RETAIN Flag is set
@@ -526,8 +542,8 @@ void mqttPubAckRec(uint8_t packet[], uint16_t flags, uint8_t type)
     tcp->urgentPointer = 0;               // Not used in this class
     tcp->window        = htons(1024);
     tcp->dataCtrlFields = htons(flags);
-    tcp->seqNum = prevSeqNum;
-    tcp->ackNum = prevAckNum;
+    tcp->seqNum = tcb.prevSeqNum;
+    tcp->ackNum = tcb.prevAckNum;
 
     if(type == 4)
     {
@@ -618,9 +634,9 @@ void mqttSubscribe(uint8_t packet[], uint16_t flags, char topic[])
     tcp->urgentPointer = 0;               // Not used in this class
     tcp->window        = htons(1024);
     tcp->dataCtrlFields = htons(0x5018);
-    tcp->seqNum = prevSeqNum;
-    tcp->ackNum = prevAckNum;
-    prevSeqNum += 1;
+    tcp->seqNum = tcb.prevSeqNum;
+    tcp->ackNum = tcb.prevAckNum;
+    tcb.prevSeqNum += 1;
 
     // SUBSCRIBE Packet
     mqtt->control = 0x82;
@@ -721,9 +737,9 @@ void mqttUnsubscribe(uint8_t packet[], uint16_t flags, char topic[])
     tcp->urgentPointer = 0;               // Not used in this class
     tcp->window        = htons(1024);
     tcp->dataCtrlFields = htons(0x5018);
-    tcp->seqNum = prevSeqNum;
-    tcp->ackNum = prevAckNum;
-    prevSeqNum+=1;
+    tcp->seqNum = tcb.prevSeqNum;
+    tcp->ackNum = tcb.prevAckNum;
+   tcb.prevSeqNum+=1;
 
     // UNSUBSCRIBE Packet
     mqtt->control = 0xA2;
