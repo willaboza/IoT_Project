@@ -40,6 +40,8 @@ void initHw(void)
 
     // Enable clocks
     enablePort(PORTF);
+    enablePort(PORTB);
+    enablePort(PORTC);
     _delay_cycles(3);
 
     // Configure LED and pushbutton pins
@@ -54,13 +56,15 @@ int main(void)
     // Initialize Hardware
     initHw();
     initUart0();
+    initSpi0(USE_SSI0_RX, 4e6, 40e6);
     initEeprom();
     initTimer();
-    initAdc();
-//    initRtc();
-    // initWatchdog();
+    //initAdc();
+    //initRtc();
+    //initWatchdog();
 
     // Declare Variables
+    bool ok;
     USER_DATA userInput = {0};
     uint8_t data[MAX_PACKET_SIZE] = {0};
 
@@ -77,13 +81,15 @@ int main(void)
     resetUserInput(&userInput);
 
     // Display current ifconfig values and send DHCPREQUEST if Rebooting device
-    if(readDeviceConfig())
-    {
-        // (*dhcpLookup(nextDhcpState = INIT_REBOOT, DHCPREQUEST_EVENT))(data); // Set-up DHCP state
-    }
+    ok = readDeviceConfig();
 
     //Print Main Menu
     printMainMenu();
+
+    if(ok)
+        sendDhcpRequestMessage(data);
+    else
+        sendArpAnnouncement(data);
 
     while(true)
     {
@@ -116,30 +122,49 @@ int main(void)
             // Handles IP messages
             if (etherIsIp(data))
             {
-                // Handles DHCP Messages
+                // Handles DHCP messages
                 if(etherIsDhcp(data))
                 {
                     // Get next DHCP state event
-                    dhcpSysEvent nextEvent = (dhcpSysEvent)dhcpOfferType(data);
+                    dhcpSysEvent nextDhcpEvent = (dhcpSysEvent)dhcpOfferType(data);
 
                     // If DHCP msg rx'd then transition to next state
-                    (*dhcpLookup(nextDhcpState, nextEvent))(data);
+                    (*dhcpLookup(nextDhcpState, nextDhcpEvent))(data);
                 }
 
-                // Handle ARP request or response
-                if (etherIsArpRequest(data))
+                // Handles TCP packets
+                if(etherIsTcp(data))
                 {
-                    etherSendArpResponse(data);
+                    // Get next TCP state event
+                    uint16_t nextTcpEvent = etherIsTcpMsgType(data);
+
+                    // If DHCP msg rx'd then transition to next state
+                    (*tcpLookup(nextTcpState, (tcpSysEvent)nextTcpEvent))(data, nextTcpEvent);
+                }
+
+                if(!etherIsGratuitousResponse(data))
+                {
+                    int num = 0;
+                }
+                else if (etherIsArpRequest(data)) // Handle ARP request or response
+                {
+                    sendArpAnnouncement(data);
+                    //etherSendArpResponse(data);
                 }
                 else if(etherIsArpResponse(data))
                 {
-                        // If ARP Response received before 2 second timer elapses
-                        // then send decline message, invalidate IP and use static IP,
-                        // wait at least 10 seconds and send another DHCPDISCOVER message.
-                        stopTimer(arpResponseTimer);
-                        sendDhcpDeclineMessage(data);
-                        setStaticNetworkAddresses();
-                        startOneShotTimer(waitTimer, 10);
+                    // If ARP Response received before 2 second timer elapses
+                    // then send decline message, invalidate IP and use static IP,
+                    // wait at least 10 seconds and send another DHCPDISCOVER message.
+                    stopTimer(arpResponseTimer);
+                    sendDhcpDeclineMessage(data);
+                    setStaticNetworkAddresses();
+                    startOneShotTimer(waitTimer, 10);
+                }
+
+                if (etherIsPingRequest(data)) // handle icmp ping request
+                {
+                    etherSendPingResponse(data);
                 }
             }
         }

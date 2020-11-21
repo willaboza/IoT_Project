@@ -32,7 +32,7 @@
 // Subroutines
 //-----------------------------------------------------------------------------
 
-void initSpi0(uint32_t pinMask);
+void initSpi0(uint32_t pinMask, uint32_t clockRate, uint32_t fcyc);
 void setSpi0BaudRate(uint32_t clockRate, uint32_t fcyc);
 void setSpi0Mode(uint8_t polarity, uint8_t phase);
 void writeSpi0Data(uint32_t data);

@@ -1,9 +1,14 @@
-/*
- * ethernet.c
- *
- *  Created on: Feb 12, 2020 by William Bozarth
- *      Author: Jason Losh
- */
+// ethernet.c
+// William Bozarth
+// Created on: February 12, 2020
+
+//-----------------------------------------------------------------------------
+// Hardware Target
+//-----------------------------------------------------------------------------
+
+// Target Platform: EK-TM4C123GXL Evaluation Board
+// Target uC:       TM4C123GH6PM
+// System Clock:    40 MHz
 
 #include "ethernet.h"
 
@@ -152,18 +157,6 @@ void etherReadMemStop(void)
 // Uses order suggested in Chapter 6 of datasheet except 6.4 OST which is first here
 void etherInit(uint16_t mode)
 {
-    // Initialize SPI0
-    initSpi0(USE_SSI0_RX);
-    setSpi0BaudRate(4e6, 40e6);
-    setSpi0Mode(0, 0);
-
-    // Enable clocks
-    enablePort(PORTB);
-    enablePort(PORTC);
-
-    selectPinPushPullOutput(GREEN_LED);
-    selectPinPushPullOutput(BLUE_LED);
-
     // Configure pins for ethernet module
     selectPinPushPullOutput(CS);
     selectPinDigitalInput(WOL);
@@ -544,6 +537,27 @@ bool etherIsArpResponse(uint8_t packet[])
     return ok;
 }
 
+//
+bool etherIsGratuitousResponse(uint8_t packet[])
+{
+    uint8_t i = 0;
+
+    etherFrame* ether = (etherFrame*)packet;
+    arpFrame* arp = (arpFrame*)&ether->data;
+
+    if(ether->frameType != htons(0x0806) && arp->op != htons(2))
+        return false;
+
+    while (i < IP_ADD_LENGTH)
+    {
+        if(arp->sourceIp[i] != ipAddress[i])
+            return false;
+        i++;
+    }
+
+    return true;
+}
+
 // Sends an ARP response given the request data
 void etherSendArpResponse(uint8_t packet[])
 {
@@ -572,32 +586,159 @@ void etherSendArpResponse(uint8_t packet[])
 // Sends an ARP request (Set-up as Gratuitous APR Request)
 void etherSendArpRequest(uint8_t packet[])
 {
+    uint8_t i;
+
     etherFrame* ether = (etherFrame*)packet;
     arpFrame* arp = (arpFrame*)&ether->data;
-    uint8_t i;
+
     // fill ethernet frame
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
         ether->destAddress[i] = 0xFF;
         ether->sourceAddress[i] = macAddress[i];
     }
+
     ether->frameType = htons(0x0806);
+
     // fill arp frame
     arp->hardwareType = htons(1);
     arp->protocolType = htons(0x0800);
     arp->hardwareSize = 6;
     arp->protocolSize = 4;
     arp->op = htons(1);
+
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
-        arp->sourceAddress[i] = macAddress[i];
         arp->destAddress[i] = 0xFF;
+        arp->sourceAddress[i] = macAddress[i];
     }
+
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
-        arp->sourceIp[i] = ipAddress[i];
         arp->destIp[i] = ipAddress[i];
+        arp->sourceIp[i] = ipAddress[i];
     }
+
+    // send packet
+    etherPutPacket((uint8_t *)ether, 42);
+}
+
+// Sends an ARP probe packet to detect any IP address conflicts
+void sendArpProbe(uint8_t packet[])
+{
+    uint8_t i;
+
+    etherFrame* ether = (etherFrame*)packet;
+    arpFrame* arp = (arpFrame*)&ether->data;
+
+    // fill ethernet frame
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        ether->destAddress[i] = 0xFF;
+        ether->sourceAddress[i] = macAddress[i];
+    }
+
+    ether->frameType = htons(0x0806);
+
+    // fill arp frame
+    arp->hardwareType = htons(1);
+    arp->protocolType = htons(0x0800);
+    arp->hardwareSize = 6;
+    arp->protocolSize = 4;
+    arp->op = htons(1);
+
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        arp->destAddress[i] = 0;
+        arp->sourceAddress[i] = macAddress[i];
+    }
+
+    for (i = 0; i < IP_ADD_LENGTH; i++)
+    {
+        arp->destIp[i] = ipAddress[i];
+        arp->sourceIp[i] = 0;
+    }
+
+    // send packet
+    etherPutPacket((uint8_t *)ether, 42);
+}
+
+// Sends an ARP announcement to officially "claim" the IP address on the network
+void sendArpAnnouncement(uint8_t packet[])
+{
+    uint8_t i;
+
+    etherFrame* ether = (etherFrame*)packet;
+    arpFrame* arp = (arpFrame*)&ether->data;
+
+    // fill ethernet frame
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        ether->destAddress[i] = 0xFF;
+        ether->sourceAddress[i] = macAddress[i];
+    }
+
+    ether->frameType = htons(0x0806);
+
+    // fill arp frame
+    arp->hardwareType = htons(1);
+    arp->protocolType = htons(0x0800);
+    arp->hardwareSize = 6;
+    arp->protocolSize = 4;
+    arp->op = htons(1);
+
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        arp->destAddress[i] = 0;
+        arp->sourceAddress[i] = macAddress[i];
+    }
+
+    for (i = 0; i < IP_ADD_LENGTH; i++)
+    {
+        arp->destIp[i] = ipAddress[i];
+        arp->sourceIp[i] = ipAddress[i];
+    }
+
+    // send packet
+    etherPutPacket((uint8_t *)ether, 42);
+}
+
+// Sends an ARP request (Set-up as Gratuitous APR Request)
+void sendGratuitousArpResponse(uint8_t packet[])
+{
+    uint8_t i;
+
+    etherFrame* ether = (etherFrame*)packet;
+    arpFrame* arp = (arpFrame*)&ether->data;
+
+    // fill ethernet frame
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        ether->destAddress[i] = 0xFF;
+        ether->sourceAddress[i] = macAddress[i];
+    }
+
+    ether->frameType = htons(0x0806);
+
+    // fill arp frame
+    arp->hardwareType = htons(1);
+    arp->protocolType = htons(0x0800);
+    arp->hardwareSize = 6;
+    arp->protocolSize = 4;
+    arp->op = htons(2);
+
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        arp->destAddress[i] = 0xFF;
+        arp->sourceAddress[i] = macAddress[i];
+    }
+
+    for (i = 0; i < IP_ADD_LENGTH; i++)
+    {
+        arp->destIp[i] = ipAddress[i];
+        arp->sourceIp[i] = ipAddress[i];
+    }
+
     // send packet
     etherPutPacket((uint8_t *)ether, 42);
 }
@@ -991,6 +1132,12 @@ void displayIfconfigInfo(void)
             sendUart0String(".");
     }
     sendUart0String("\r\n");
+
+    // Check if Ethernet Link is UP|DOWN
+    if (etherIsLinkUp())
+        sendUart0String("  Link is up\r\n");
+    else
+        sendUart0String("  Link is down\r\n");
 }
 
 // Init Ethernet Interface

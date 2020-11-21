@@ -190,6 +190,8 @@ void mqttPing(void)
 // Turn off on board Red LED after elapsed time
 void clearRedLed(void)
 {
+    stopTimer(clearRedLed);
+
     // Turn off Red LED
     setPinValue(RED_LED, 0);
 }
@@ -197,6 +199,8 @@ void clearRedLed(void)
 // Turn off on board Blue LED after elapsed time
 void clearBlueLed(void)
 {
+    stopTimer(clearBlueLed);
+
     // Turn off Red LED
     setPinValue(BLUE_LED, 0);
 }
@@ -204,6 +208,8 @@ void clearBlueLed(void)
 // Turn off on board Green LED after elapsed time
 void clearGreenLed(void)
 {
+    stopTimer(clearGreenLed);
+
     // Turn off Red LED
     setPinValue(GREEN_LED, 0);
 }
