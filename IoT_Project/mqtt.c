@@ -23,68 +23,57 @@
 #include "uart0.h"
 #include "timers.h"
 
-uint8_t ipMqttAddress[IP_ADD_LENGTH]    = {192,168,1,67};
-uint8_t mqttBrokerMac[HW_ADD_LENGTH]    = {0x04,0xD3,0xB0,0x7F,0x7E};
+mqttTopics topics[MQTT_MAX_TABLE_SIZE] = {0};
+mqttParserInfo mqttParser = {0};
+uint8_t mqttIpAddress[MQTT_ADD_LENGTH] = {0};
+uint8_t mqttMacAddress[MQTT_HW_ADD_LENGTH] = {0};
 uint8_t mqttMsgType = 0;
-uint16_t mqttSrcPort = 49100;
-uint16_t packetId = 0;
+uint16_t mqttSrcPort = 54000;
+uint16_t mqttPacketId = 0;
 
-bool mqttMsgFlag = false;
-bool sendMqttConnect = false;
-bool sendPubackFlag = false;
-bool sendPubrecFlag = false;
-bool pubMessageReceived = false;
-
-subscribedTopics topics[MAX_TABLE_SIZE] = {0};
-
-// Set DNS Address
+// Set MQTT Address
 void setMqttAddress(uint8_t mqtt0, uint8_t mqtt1, uint8_t mqtt2, uint8_t mqtt3)
 {
-    ipMqttAddress[0] = mqtt0;
-    ipMqttAddress[1] = mqtt1;
-    ipMqttAddress[2] = mqtt2;
-    ipMqttAddress[3] = mqtt3;
+    mqttIpAddress[0] = mqtt0;
+    mqttIpAddress[1] = mqtt1;
+    mqttIpAddress[2] = mqtt2;
+    mqttIpAddress[3] = mqtt3;
 }
 
-// Get DNS Address
-void getMqttAddress(uint8_t mqtt[4])
+// Get MQTT Address
+void getMqttAddress(uint8_t mqtt[])
 {
     uint8_t i;
     for (i = 0; i < 4; i++)
-        mqtt[i] = ipMqttAddress[i];
+        mqtt[i] = mqttIpAddress[i];
 }
 
 // Function finds 1st slot with validBit field set to false and returns the index value to it.
-uint8_t findEmptySlot()
+uint8_t findEmptySlot(void)
 {
-    uint8_t i, tmp8;
-    bool ok = true;
+    uint8_t i;
+
     i = 0;
-    while((i < MAX_TABLE_SIZE) && ok)
+    while(i < MQTT_MAX_TABLE_SIZE)
     {
         if(!(topics[i].validBit))
-        {
-            tmp8 = i;
-            ok = false;
-        }
+            return i;
         i++;
     }
-    return tmp8;
+    return 0;
 }
 
 // Function to Create Empty Slot in Subscriptions Table for re-use
 void createEmptySlot(char info[])
 {
     uint8_t i = 0;
-    bool ok = true;
 
-    i = 0;
-    while((i < MAX_TABLE_SIZE) && ok)
+    while(i < MQTT_MAX_TABLE_SIZE)
     {
         if(strcmp(topics[i].subs, info) == 0)
         {
             topics[i].validBit = false;
-            ok = true;
+            return;
         }
         i++;
     }
@@ -93,47 +82,150 @@ void createEmptySlot(char info[])
 // Determines whether packet is MQTT
 bool mqttMessage(uint8_t packet[])
 {
-    bool ok= false;
-    uint16_t tmp16;
-
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip = (ipFrame*)&ether->data;
-    ip->revSize       = 0x45; // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
-    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
 
-    tmp16 = htons(tcp->dataCtrlFields);
-
+    // If Source Port = 1883 it is a MQTT packet.
+    if(htons(tcp->sourcePort) == 1883)
+        return true;
     // Find where data begins for TCP Header and then point the mqttFrame to that index
-    tmp16 = (((tmp16 & 0xF000) >> 12) - 5) * 4;
-    mqttFrame *mqtt   = (mqttFrame*)&tcp->data[tmp16];
+    // index = (((htons(tcp->dataCtrlFields) & 0xF000) >> 12) - 5) * 4;
+    // mqttFrame *mqtt   = (mqttFrame*)&tcp->data[index];
 
     // If Source Port = 1883 it is a MQTT packet.
     // Further filter for only MQTT Publish packets received from broker
-    tmp16 = htons(tcp->sourcePort);
-    if((tmp16 == 1883) && (mqtt->control & 0xF0) == 48)
+    // if(htons(tcp->sourcePort) == 1883 && (mqtt->control & 0xF0) == 48)
+    //    return true;
+
+    return false;
+}
+
+// Returns MQTT packet type
+uint8_t getMqttMsgType(uint8_t packet[])
+{
+    uint16_t index;
+
+    etherFrame* ether = (etherFrame*)packet;
+    ipFrame* ip       = (ipFrame*)&ether->data;
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
+
+    // Find where data begins for TCP Header and then point the mqttFrame to that index
+    index = (((htons(tcp->dataCtrlFields) & 0xF000) >> 12) - 5) * 4;
+    mqttFrame *mqtt   = (mqttFrame*)&tcp->data[index];
+
+    return (mqtt->control & 0xF0);
+}
+
+void mqttMessageEstablished(void)
+{
+    //uint8_t packet[MAX_PACKET_SIZE];
+
+    sendMqttConnectMessage(data, 0x5018); // Flag = PSH + ACK
+
+    startPeriodicTimer(mqttPingTimerExpired, (MQTT_KEEP_ALIVE_TIME * MULT_FACTOR));
+
+    stopTimer(mqttMessageEstablished);
+}
+
+void mqttPingTimerExpired(void)
+{
+    //uint8_t packet[MAX_PACKET_SIZE];
+
+    sendMqttPingRequest(data, 0x5018);
+}
+/*
+// Algorithm for encoding a non-negative integer into the variable length encoding scheme
+uint32_t encodeRemainingLength(uint8_t packet[], uint32_t )
+{
+    uint8_t encodedByte;
+    uint32_t value;
+
+    etherFrame* ether = (etherFrame*)packet;
+    ipFrame* ip       = (ipFrame*)&ether->data;
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
+    mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
+
+    while(value > 0)
     {
-        ok = true;
+
+    }
+}
+
+// Algorithm for decoding the Remaining Length field
+uint32_t decodeRemainingLength(uint8_t packet[])
+{
+    uint8_t encodedByte;
+    uint32_t multiplier = 1, value = 0;
+
+    etherFrame* ether = (etherFrame*)packet;
+    ipFrame* ip       = (ipFrame*)&ether->data;
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
+    mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
+
+
+}
+*/
+
+uint8_t appendMqttMessage(uint8_t packet[], uint8_t msgType)
+{
+    uint8_t i = 0;
+
+    etherFrame* ether = (etherFrame*)packet;
+    ipFrame* ip       = (ipFrame*)&ether->data;
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
+    mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
+
+    switch(msgType)
+    {
+    case CONNECT:
+        break;
+    case CONNACK:
+        break;
+    case PUBLISH:
+        break;
+    case PUBACK:
+        break;
+    case PUBREC:
+        break;
+    case PUBREL:
+        break;
+    case PUBCOMP:
+        break;
+    case SUBSCRIBE:
+        break;
+    case UNSUBSCRIBE:
+        break;
+    case UNSUBACK:
+        break;
+    case PINGREQ:
+        break;
+    case PINGRESP:
+        break;
+    case DISCONNECT:
+        break;
+    default:
+        break;
     }
 
-    return ok;
+    return (i + 2);
 }
 
 // Connect Variable Header Contains: Protocol Name, Protocol Level, Connect Flags, Keep Alive, and Properties
-void mqttConnectMessage(uint8_t packet[], uint16_t flags)
+void sendMqttConnectMessage(uint8_t packet[], uint16_t flags)
 {
     uint8_t i = 0;
     uint16_t tcpSize = 0, tmp16 = 0;
 
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip       = (ipFrame*)&ether->data;
-    ip->revSize       = 0x45; // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
-    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
     mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
 
     // Fill etherFrame
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
-        ether->destAddress[i]   = 0xFF;
+        ether->destAddress[i]   = mqttMacAddress[i];
         ether->sourceAddress[i] = macAddress[i];
     }
 
@@ -142,25 +234,26 @@ void mqttConnectMessage(uint8_t packet[], uint16_t flags)
     // Fill ipFrame
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
-        ip->destIp[i]   = ipMqttAddress[i];
+        ip->destIp[i]   = mqttIpAddress[i];
         ip->sourceIp[i] = ipAddress[i];
     }
 
     // For purposes of computing the checksum, the value of the checksum field is zero. (See RFC791 Section 3.1)
+    ip->revSize        = 0x45;               // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
     ip->headerChecksum = 0;
     ip->typeOfService  = 0;
     ip->id             = htons(1);
-    ip->flagsAndOffset = htons(0x4000);   // Don't Fragment Flag Set
-    ip->ttl            = 30;              // Time-to-Live in seconds
-    ip->protocol       = 6;               // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
+    ip->flagsAndOffset = 0;                  // Don't Fragment Flag Set
+    ip->ttl            = TIME_TO_LIVE;       // Time-to-Live in seconds
+    ip->protocol       = 6;                  // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
 
-    tcp->destPort      = htons(1883);     // Destination Port is
+    tcp->destPort      = htons(1883);        // Destination Port is
     tcp->sourcePort    = htons(mqttSrcPort);
-    tcp->checksum      = 0;               // Set checksum to zero before performing calculation
-    tcp->urgentPointer = 0;               // Not used in this class
+    tcp->checksum      = 0;                  // Set checksum to zero before performing calculation
+    tcp->urgentPointer = 0;                  // Not used in this class
     tcp->window        = htons(1024);
-    tcp->seqNum = tcb.prevSeqNum;
-    tcp->ackNum = tcb.prevAckNum;
+    tcp->seqNum = tcb.currentSeqNum;
+    tcp->ackNum = tcb.currentAckNum;
     tcp->dataCtrlFields = htons(flags);
 
     // Connect Packet Type = 1, Flags = 0
@@ -192,21 +285,25 @@ void mqttConnectMessage(uint8_t packet[], uint16_t flags)
 
     // Keep Alive = 60
     mqtt->data[i++] = 0x00; // MSB
-    mqtt->data[i++] = KEEP_ALIVE_TIME; // LSB
+    mqtt->data[i++] = MQTT_KEEP_ALIVE_TIME; // LSB
 
     // Client ID Length
     mqtt->data[i++] = 0x00;
-    mqtt->data[i++] = 0x04;
+    mqtt->data[i++] = 0x08;
 
     // Client ID
     mqtt->data[i++] = 'm';
     mqtt->data[i++] = 'o';
-    mqtt->data[i++] = 't';
-    mqtt->data[i++] = 'h';
+    mqtt->data[i++] = 'T';
+    mqtt->data[i++] = 'h';;
+    mqtt->data[i++] = 'R';
+    mqtt->data[i++] = 'a';
+    mqtt->data[i++] = '-';
+    mqtt->data[i++] = '1';
 
     mqtt->packetLength = i; // MQTT Message Length
 
-    tcpSize = (sizeof(tcpFrame) + (i+2)); // Size of Options
+    tcpSize = (sizeof(tcpFrame) + (i + 2)); // Size of Options
 
     sum = 0;
     ip->length = htons(((ip->revSize & 0xF) * 4) + tcpSize); // Adjust length of IP header
@@ -235,21 +332,21 @@ void mqttConnectMessage(uint8_t packet[], uint16_t flags)
 }
 
 // MQTT Connect+Ack Message
-void mqttDisconnectMessage(uint8_t packet[], uint16_t flags)
+void sendMqttDisconnectMessage(uint8_t packet[], uint16_t flags)
 {
     uint8_t i = 0;
     uint16_t tcpSize = 0, tmp16 = 0;
+    uint32_t tmp32 = 0;
 
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip       = (ipFrame*)&ether->data;
-    ip->revSize       = 0x45; // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
-    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
     mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
 
     // Fill etherFrame
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
-        ether->destAddress[i]   = 0xFF;
+        ether->destAddress[i]   = mqttMacAddress[i];
         ether->sourceAddress[i] = macAddress[i];
     }
 
@@ -258,11 +355,12 @@ void mqttDisconnectMessage(uint8_t packet[], uint16_t flags)
     // Fill ipFrame
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
-        ip->destIp[i]   = ipMqttAddress[i];
+        ip->destIp[i]   = mqttIpAddress[i];
         ip->sourceIp[i] = ipAddress[i];
     }
 
     // For purposes of computing the checksum, the value of the checksum field is zero. (See RFC791 Section 3.1)
+    ip->revSize        = 0x45;            // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
     ip->headerChecksum = 0;
     ip->typeOfService  = 0;
     ip->id             = htons(1);
@@ -276,8 +374,18 @@ void mqttDisconnectMessage(uint8_t packet[], uint16_t flags)
     tcp->urgentPointer = 0;               // Not used in this class
     tcp->window        = htons(1024);
     tcp->dataCtrlFields = htons(flags);
-    tcp->seqNum = tcb.prevSeqNum;
-    tcp->ackNum = tcb.prevAckNum;
+
+    if(tcb.currentSeqNum != tcb.prevSeqNum)
+    {
+        tcp->seqNum = tcb.prevSeqNum = tcb.currentSeqNum;
+        tcp->ackNum = tcb.prevAckNum = tcb.currentAckNum;
+    }
+    else
+    {
+        tmp32 = htons32(tcb.prevSeqNum) + 1;
+        tcp->seqNum = tcb.currentSeqNum = tcb.prevSeqNum = htons32(tmp32);
+        tcp->ackNum = tcb.prevAckNum = tcb.currentAckNum;
+    }
 
     i = 0;
     // DISCONNECT
@@ -286,7 +394,7 @@ void mqttDisconnectMessage(uint8_t packet[], uint16_t flags)
     // MQTT Message Length
     mqtt->packetLength = 0; // No Variable Header or Payload for MQTT Disconnect
 
-    tcpSize = (sizeof(tcpFrame) + (i+2)); // Size of Options
+    tcpSize = (sizeof(tcpFrame) + (i + 2)); // Size of Options
 
     sum = 0;
     ip->length = htons(((ip->revSize & 0xF) * 4) + tcpSize); // Adjust length of IP header
@@ -314,21 +422,21 @@ void mqttDisconnectMessage(uint8_t packet[], uint16_t flags)
     etherPutPacket((uint8_t *)ether, 14 + ((ip->revSize & 0xF) * 4) + tcpSize);
 }
 
-void mqttPingRequest(uint8_t packet[], uint16_t flags)
+void sendMqttPingRequest(uint8_t packet[], uint16_t flags)
 {
     uint8_t i = 0;
     uint16_t tcpSize = 0, tmp16 = 0;
+    uint32_t tmp32 = 0;
 
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip       = (ipFrame*)&ether->data;
-    ip->revSize       = 0x45; // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
-    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
     mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
 
     // Fill etherFrame
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
-        ether->destAddress[i]   = 0xFF;
+        ether->destAddress[i]   = mqttMacAddress[i];
         ether->sourceAddress[i] = macAddress[i];
     }
 
@@ -337,36 +445,53 @@ void mqttPingRequest(uint8_t packet[], uint16_t flags)
     // Fill ipFrame
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
-        ip->destIp[i]   = ipMqttAddress[i];
+        ip->destIp[i]   = mqttIpAddress[i];
         ip->sourceIp[i] = ipAddress[i];
     }
 
     // For purposes of computing the checksum, the value of the checksum field is zero. (See RFC791 Section 3.1)
+    ip->revSize        = 0x45;               // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
     ip->headerChecksum = 0;
     ip->typeOfService  = 0;
     ip->id             = htons(1);
-    ip->flagsAndOffset = htons(0x4000);   // Don't Fragment Flag Set
-    ip->ttl            = 30;              // Time-to-Live in seconds
-    ip->protocol       = 6;               // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
+    ip->flagsAndOffset = 0;                  // Don't Fragment Flag Set
+    ip->ttl            = TIME_TO_LIVE;       // Time-to-Live in seconds
+    ip->protocol       = 6;                  // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
 
-    tcp->destPort      = htons(1883);     // Destination Port is
+    tcp->destPort      = htons(1883);        // Destination Port is
     tcp->sourcePort    = htons(mqttSrcPort);
-    tcp->checksum      = 0;               // Set checksum to zero before performing calculation
-    tcp->urgentPointer = 0;               // Not used in this class
+    tcp->checksum      = 0;                  // Set checksum to zero before performing calculation
+    tcp->urgentPointer = 0;                  // Not used in this class
     tcp->window        = htons(1024);
     tcp->dataCtrlFields = htons(flags);
-    tcp->seqNum = tcb.prevSeqNum;
-    tcp->ackNum = tcb.prevAckNum;
-    tcb.prevSeqNum += 1;
-
+    tcp->seqNum = tcb.currentSeqNum;
+    tcp->ackNum = tcb.currentAckNum;
+    /*
+    if(tcb.currentSeqNum != tcb.prevSeqNum)
+    {
+        //tcb.prevSeqNum = tcb.currentSeqNum;
+        //tcb.prevAckNum = tcb.currentAckNum;
+        tcp->seqNum = tcb.currentSeqNum;
+        tcp->ackNum = tcb.currentAckNum;
+    }
+    else
+    {
+        tmp32 = htons32(tcb.prevSeqNum) + 1;
+        tcb.prevSeqNum = tcb.currentSeqNum;
+        tcb.prevAckNum = tcb.currentAckNum;
+        tcp->seqNum = tcb.currentSeqNum = htons32(tmp32);
+        tcp->ackNum = tcb.currentAckNum;
+    }
+    */
     i = 0;
+
     // PING REQUEST
     mqtt->control = 0xC0;
 
     // MQTT Message Length
     mqtt->packetLength = 0; // No Variable Header or Payload for MQTT Ping Request
 
-    tcpSize = (sizeof(tcpFrame) + (i+2)); // Size of Options
+    tcpSize = (sizeof(tcpFrame) + (i + 2)); // Size of Options
 
     sum = 0;
     ip->length = htons(((ip->revSize & 0xF) * 4) + tcpSize); // Adjust length of IP header
@@ -402,14 +527,13 @@ void mqttPublish(uint8_t packet[], uint16_t flags, char topic[], char data[])
 
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip       = (ipFrame*)&ether->data;
-    ip->revSize       = 0x45; // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
-    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
     mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
 
     // Fill etherFrame
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
-        ether->destAddress[i]   = 0xFF;
+        ether->destAddress[i]   = mqttIpAddress[i];
         ether->sourceAddress[i] = macAddress[i];
     }
 
@@ -418,26 +542,27 @@ void mqttPublish(uint8_t packet[], uint16_t flags, char topic[], char data[])
     // Fill ipFrame
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
-        ip->destIp[i]   = ipMqttAddress[i];
+        ip->destIp[i]   = mqttIpAddress[i];
         ip->sourceIp[i] = ipAddress[i];
     }
 
     // For purposes of computing the checksum, the value of the checksum field is zero. (See RFC791 Section 3.1)
+    ip->revSize       = 0x45;                // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
     ip->headerChecksum = 0;
     ip->typeOfService  = 0;
     ip->id             = htons(1);
-    ip->flagsAndOffset = htons(0x4000);   // Don't Fragment Flag Set
-    ip->ttl            = 30;              // Time-to-Live in seconds
-    ip->protocol       = 6;               // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
+    ip->flagsAndOffset = 0;                  // Don't Fragment Flag Set
+    ip->ttl            = TIME_TO_LIVE;       // Time-to-Live in seconds
+    ip->protocol       = 6;                  // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
 
-    tcp->destPort      = htons(1883);     // Destination Port is
+    tcp->destPort      = htons(1883);        // Destination Port is
     tcp->sourcePort    = htons(mqttSrcPort);
-    tcp->checksum      = 0;               // Set checksum to zero before performing calculation
-    tcp->urgentPointer = 0;               // Not used in this class
+    tcp->checksum      = 0;                  // Set checksum to zero before performing calculation
+    tcp->urgentPointer = 0;                  // Not used in this class
     tcp->window        = htons(1024);
     tcp->dataCtrlFields = htons(0x5018);
-    tcp->seqNum = tcb.prevSeqNum;
-    tcp->ackNum = tcb.prevAckNum;
+    tcp->seqNum = tcb.currentSeqNum;
+    tcp->ackNum = tcb.currentAckNum;
 
     // PUBLISH Packet
     mqtt->control = 0x31; // RETAIN Flag is set
@@ -501,15 +626,14 @@ void mqttPublish(uint8_t packet[], uint16_t flags, char topic[], char data[])
 }
 
 // Function for Sending MQTT PUBACK Message
-void mqttPubAckRec(uint8_t packet[], uint16_t flags, uint8_t type)
+void mqttPubAckRec(uint8_t packet[], uint8_t type, uint16_t flags, uint16_t packetId)
 {
     uint8_t i = 0;
     uint16_t tcpSize = 0, tmp16 = 0;
 
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip       = (ipFrame*)&ether->data;
-    ip->revSize       = 0x45; // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
-    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
     mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
 
     // Fill etherFrame
@@ -524,26 +648,27 @@ void mqttPubAckRec(uint8_t packet[], uint16_t flags, uint8_t type)
     // Fill ipFrame
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
-        ip->destIp[i]   = ipMqttAddress[i];
+        ip->destIp[i]   = mqttIpAddress[i];
         ip->sourceIp[i] = ipAddress[i];
     }
 
     // For purposes of computing the checksum, the value of the checksum field is zero. (See RFC791 Section 3.1)
+    ip->revSize        = 0x45;               // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
     ip->headerChecksum = 0;
     ip->typeOfService  = 0;
     ip->id             = htons(1);
-    ip->flagsAndOffset = htons(0x4000);   // Don't Fragment Flag Set
-    ip->ttl            = 30;              // Time-to-Live in seconds
-    ip->protocol       = 6;               // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
+    ip->flagsAndOffset = htons(0x4000);      // Don't Fragment Flag Set
+    ip->ttl            = TIME_TO_LIVE;       // Time-to-Live in seconds
+    ip->protocol       = 6;                  // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
 
-    tcp->destPort      = htons(1883);     // Destination Port is
+    tcp->destPort      = htons(1883);        // Destination Port is
     tcp->sourcePort    = htons(mqttSrcPort);
-    tcp->checksum      = 0;               // Set checksum to zero before performing calculation
-    tcp->urgentPointer = 0;               // Not used in this class
+    tcp->checksum      = 0;                  // Set checksum to zero before performing calculation
+    tcp->urgentPointer = 0;                  // Not used in this class
     tcp->window        = htons(1024);
     tcp->dataCtrlFields = htons(flags);
-    tcp->seqNum = tcb.prevSeqNum;
-    tcp->ackNum = tcb.prevAckNum;
+    tcp->seqNum = tcb.currentSeqNum;
+    tcp->ackNum = tcb.currentAckNum;
 
     if(type == 4)
     {
@@ -564,7 +689,7 @@ void mqttPubAckRec(uint8_t packet[], uint16_t flags, uint8_t type)
     mqtt->data[i++] = packetId >> 8; // ID MSB
     mqtt->data[i++] = packetId;      // ID LSB
 
-    tcpSize = (sizeof(tcpFrame) + (i+2)); // Size of Options
+    tcpSize = (sizeof(tcpFrame) + (i + 2)); // Size of Options
 
     sum = 0;
     ip->length = htons(((ip->revSize & 0xF) * 4) + tcpSize); // Adjust length of IP header
@@ -600,8 +725,7 @@ void mqttSubscribe(uint8_t packet[], uint16_t flags, char topic[])
 
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip       = (ipFrame*)&ether->data;
-    ip->revSize       = 0x45; // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
-    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
     mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
 
     // Fill etherFrame
@@ -616,26 +740,27 @@ void mqttSubscribe(uint8_t packet[], uint16_t flags, char topic[])
     // Fill ipFrame
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
-        ip->destIp[i]   = ipMqttAddress[i];
+        ip->destIp[i]   = mqttIpAddress[i];
         ip->sourceIp[i] = ipAddress[i];
     }
 
     // For purposes of computing the checksum, the value of the checksum field is zero. (See RFC791 Section 3.1)
+    ip->revSize        = 0x45;               // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
     ip->headerChecksum = 0;
     ip->typeOfService  = 0;
     ip->id             = htons(1);
-    ip->flagsAndOffset = htons(0x4000);   // Don't Fragment Flag Set
-    ip->ttl            = 30;              // Time-to-Live in seconds
-    ip->protocol       = 6;               // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
+    ip->flagsAndOffset = htons(0x4000);      // Don't Fragment Flag Set
+    ip->ttl            = TIME_TO_LIVE;       // Time-to-Live in seconds
+    ip->protocol       = 6;                  // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
 
-    tcp->destPort      = htons(1883);     // Destination Port is
+    tcp->destPort      = htons(1883);        // Destination Port is
     tcp->sourcePort    = htons(mqttSrcPort);
-    tcp->checksum      = 0;               // Set checksum to zero before performing calculation
-    tcp->urgentPointer = 0;               // Not used in this class
+    tcp->checksum      = 0;                  // Set checksum to zero before performing calculation
+    tcp->urgentPointer = 0;                  // Not used in this class
     tcp->window        = htons(1024);
     tcp->dataCtrlFields = htons(0x5018);
-    tcp->seqNum = tcb.prevSeqNum;
-    tcp->ackNum = tcb.prevAckNum;
+    tcp->seqNum = tcb.currentSeqNum;
+    tcp->ackNum = tcb.currentAckNum;
     tcb.prevSeqNum += 1;
 
     // SUBSCRIBE Packet
@@ -703,8 +828,7 @@ void mqttUnsubscribe(uint8_t packet[], uint16_t flags, char topic[])
 
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip       = (ipFrame*)&ether->data;
-    ip->revSize       = 0x45; // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
-    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
     mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
 
     // Fill etherFrame
@@ -719,27 +843,28 @@ void mqttUnsubscribe(uint8_t packet[], uint16_t flags, char topic[])
     // Fill ipFrame
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
-        ip->destIp[i]   = ipMqttAddress[i];
+        ip->destIp[i]   = mqttIpAddress[i];
         ip->sourceIp[i] = ipAddress[i];
     }
 
     // For purposes of computing the checksum, the value of the checksum field is zero. (See RFC791 Section 3.1)
+    ip->revSize       = 0x45;                // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
     ip->headerChecksum = 0;
     ip->typeOfService  = 0;
     ip->id             = htons(1);
-    ip->flagsAndOffset = htons(0x4000);   // Don't Fragment Flag Set
-    ip->ttl            = 30;              // Time-to-Live in seconds
-    ip->protocol       = 6;               // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
+    ip->flagsAndOffset = htons(0x4000);      // Don't Fragment Flag Set
+    ip->ttl            = TIME_TO_LIVE;       // Time-to-Live in seconds
+    ip->protocol       = 6;                  // UDP = 17 or 0x21h (See RFC790 Assigned Internet Protocol Numbers table for list)
 
-    tcp->destPort      = htons(1883);     // Destination Port is
+    tcp->destPort      = htons(1883);        // Destination Port is
     tcp->sourcePort    = htons(mqttSrcPort);
-    tcp->checksum      = 0;               // Set checksum to zero before performing calculation
-    tcp->urgentPointer = 0;               // Not used in this class
+    tcp->checksum      = 0;                  // Set checksum to zero before performing calculation
+    tcp->urgentPointer = 0;                  // Not used in this class
     tcp->window        = htons(1024);
     tcp->dataCtrlFields = htons(0x5018);
     tcp->seqNum = tcb.prevSeqNum;
     tcp->ackNum = tcb.prevAckNum;
-   tcb.prevSeqNum+=1;
+    tcb.prevSeqNum+=1;
 
     // UNSUBSCRIBE Packet
     mqtt->control = 0xA2;
@@ -767,7 +892,7 @@ void mqttUnsubscribe(uint8_t packet[], uint16_t flags, char topic[])
     // MQTT Message Length
     mqtt->packetLength = i; // No Variable Header or Payload for MQTT Disconnect
 
-    tcpSize = (sizeof(tcpFrame) + (i+2)); // Size of Options
+    tcpSize = (sizeof(tcpFrame) + (i + 2)); // Size of Options
 
     sum = 0;
     ip->length = htons(((ip->revSize & 0xF) * 4) + tcpSize); // Adjust length of IP header

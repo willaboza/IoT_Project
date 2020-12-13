@@ -20,7 +20,7 @@
 UART0_BUFFER uart0Info = {0};
 
 // Initialize UART0
-void initUart0(void)
+void initUart0(uint32_t baudRate, uint32_t fcyc)
 {
     // Enable clocks
     SYSCTL_RCGCUART_R |= SYSCTL_RCGCUART_R0;
@@ -36,8 +36,11 @@ void initUart0(void)
     setPinAuxFunction(UART0_RX, GPIO_PCTL_PA0_U0RX);
 
     // Configure UART0 with default baud rate
-    UART0_CTL_R = 0;                                    // turn-off UART0 to allow safe programming
-    UART0_CC_R  = UART_CC_CS_SYSCLK;                     // use system clock (usually 40 MHz)
+    UART0_CTL_R = 0;                 // turn-off UART0 to allow safe programming
+    UART0_CC_R  = UART_CC_CS_SYSCLK; // use system clock (usually 40 MHz)
+
+    // Setup UART0 Baud Rate
+    setUart0BaudRate(baudRate, fcyc);
 }
 
 // Set baud rate as function of instruction cycle frequency
@@ -150,6 +153,9 @@ bool fullRingBuffer(void)
 // Function to Print Main Menu
 void printMainMenu(void)
 {
+    // Output to terminal configuration info
+    displayConnectionInfo();
+
     sendUart0String("\r\nCommands:\r\n");
     sendUart0String("  dhcp ON|OFF|REFRESH|RELEASE\r\n");
     sendUart0String("  set IP|GW|DNS|SN|MQTT w.x.y.z\r\n");

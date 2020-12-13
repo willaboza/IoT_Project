@@ -31,6 +31,8 @@ uint8_t serverIpAddress[IP_ADD_LENGTH]  = {0,0,0,0};
 uint8_t ipSubnetMask[IP_ADD_LENGTH]     = {255,255,255,0};
 uint8_t ipGwAddress[IP_ADD_LENGTH]      = {192, 168, 1, 1};
 uint8_t ipDnsAddress[IP_ADD_LENGTH]     = {192, 168, 1, 1};
+uint8_t data[MAX_PACKET_SIZE] = {0};
+
 bool dhcpEnabled = true;
 
 void etherCsOn(void)
@@ -428,31 +430,33 @@ bool etherIsIp(uint8_t packet[])
 {
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip = (ipFrame*)&ether->data;
-    bool ok;
-    ok = (ether->frameType == htons(0x0800));
-    if (ok)
-    {
-        sum = 0;
-        etherSumWords(&ip->revSize, (ip->revSize & 0xF) * 4);
-        ok = (getEtherChecksum() == 0);
-    }
-    return ok;
+
+    if(ether->frameType != htons(0x0800))
+        return false;
+
+    sum = 0;
+    etherSumWords(&ip->revSize, (ip->revSize & 0xF) * 4);
+
+    return (getEtherChecksum() == 0);
 }
 
 // Determines whether packet is unicast to this ip
 // Must be an IP packet
 bool etherIsIpUnicast(uint8_t packet[])
 {
+    uint8_t i = 0;
+
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip = (ipFrame*)&ether->data;
-    uint8_t i = 0;
-    bool ok = true;
-    while (ok & (i < IP_ADD_LENGTH))
+
+    while (i < IP_ADD_LENGTH)
     {
-        ok = (ip->destIp[i] == ipAddress[i]);
+        if(ip->destIp[i] != ipAddress[i])
+            return false;
         i++;
     }
-    return ok;
+
+    return true;
 }
 
 // Determines whether packet is ping request
@@ -502,39 +506,43 @@ void etherSendPingResponse(uint8_t packet[])
 // Determines whether packet is ARP
 bool etherIsArpRequest(uint8_t packet[])
 {
+    uint8_t i = 0;
+
     etherFrame* ether = (etherFrame*)packet;
     arpFrame* arp = (arpFrame*)&ether->data;
-    bool ok;
-    uint8_t i = 0;
-    ok = (ether->frameType == htons(0x0806));
-    while (ok & (i < IP_ADD_LENGTH))
+
+    if(ether->frameType != htons(0x0806) || arp->op != htons(1))
+        return false;
+
+    while(i < IP_ADD_LENGTH)
     {
-        ok = (arp->destIp[i] == ipAddress[i]);
+        if(arp->destIp[i] != ipAddress[i])
+            return false;
         i++;
     }
-    if (ok)
-    {
-        ok = (arp->op == htons(1));
-    }
-    return ok;
+
+    return true;
 }
 
 // Determines whether packet is ARP
 bool etherIsArpResponse(uint8_t packet[])
 {
+    uint8_t i = 0;
+
     etherFrame* ether = (etherFrame*)packet;
     arpFrame* arp = (arpFrame*)&ether->data;
-    bool ok;
-    uint8_t i = 0;
-    ok = (ether->frameType == htons(0x0806));
-    while (ok & (i < IP_ADD_LENGTH))
+
+    if(ether->frameType != htons(0x0806) || arp->op != htons(2))
+        return false;
+
+    while (i < IP_ADD_LENGTH)
     {
-        ok = (arp->destIp[i] == ipAddress[i]);
+        if(arp->destIp[i] != ipAddress[i])
+            return false;
         i++;
     }
-    if (ok)
-        ok = (arp->op == htons(2));
-    return ok;
+
+    return true;
 }
 
 //
@@ -545,7 +553,7 @@ bool etherIsGratuitousResponse(uint8_t packet[])
     etherFrame* ether = (etherFrame*)packet;
     arpFrame* arp = (arpFrame*)&ether->data;
 
-    if(ether->frameType != htons(0x0806) && arp->op != htons(2))
+    if(ether->frameType != htons(0x0806) || arp->op != htons(2))
         return false;
 
     while (i < IP_ADD_LENGTH)
@@ -750,22 +758,20 @@ bool etherIsUdp(uint8_t packet[])
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip = (ipFrame*)&ether->data;
     udpFrame* udp = (udpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
-    bool ok;
-    uint16_t tmp16;
-    ok = (ip->protocol == 0x11);
-    if (ok)
-    {
-        // 32-bit sum over pseudo-header
-        sum = 0;
-        etherSumWords(ip->sourceIp, 8);
-        tmp16 = ip->protocol;
-        sum += (tmp16 & 0xff) << 8;
-        etherSumWords(&udp->length, 2);
-        // add udp header and data
-        etherSumWords(udp, ntohs(udp->length));
-        ok = (getEtherChecksum() == 0);
-    }
-    return ok;
+
+    if(ip->protocol != 0x11)
+        return false;
+
+    // 32-bit sum over pseudo-header
+    sum = 0;
+    etherSumWords(ip->sourceIp, 8);
+    sum += (ip->protocol & 0xff) << 8;
+    etherSumWords(&udp->length, 2);
+
+    // add udp header and data
+    etherSumWords(udp, ntohs(udp->length));
+
+    return (getEtherChecksum() == 0);
 }
 
 // Gets pointer to UDP payload of frame
@@ -1167,4 +1173,17 @@ void setStaticNetworkAddresses(void)
     etherSetIpSubnetMask(255, 255, 255, 0);
     etherSetIpGatewayAddress(192, 168, 1, 1);
     setDnsAddress(0, 0, 0, 0);
+}
+
+// Use to set the various ether or IP address info
+void setAddressInfo(void* data, uint8_t add[], uint8_t sizeInBytes)
+{
+    uint8_t i;
+    uint8_t* pData = (uint8_t*)data;
+
+    for (i = 0; i < sizeInBytes; i++)
+    {
+        *pData = add[i];
+        pData++;
+    }
 }

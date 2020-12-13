@@ -19,7 +19,7 @@
 // Defines for Constants
 //
 #define MAX_CHARS  50
-#define MAX_FIELDS 5
+#define MAX_FIELDS 7
 
 //
 // Structure Definition
@@ -41,12 +41,11 @@ typedef struct _USER_DATA
 //
 bool getsUart0(USER_DATA* data);
 void parseFields(USER_DATA* data);
-void resetUserInput(USER_DATA* data);
 bool isCommand(USER_DATA** data, const char strCommand[], uint8_t minArguments);
 void getFieldString(USER_DATA** data, char fieldString[], uint8_t fieldNumber);
 int32_t getFieldInteger(USER_DATA** data, uint8_t fieldNumber);
-void parseMqttPacket(USER_DATA* data);
-void processMqttMessage(uint8_t packet[], USER_DATA* topic, USER_DATA* data);
+void parseMqttPacket(uint8_t packet[], uint32_t start, uint32_t length);
+void processMqttMessage(uint8_t packet[]);
 bool isMqttCommand(USER_DATA* data, const char strCommand[], uint8_t minArguments);
 void printSubscribedTopics(void);
 void shellCommands(USER_DATA* userInput, uint8_t data[]);

@@ -1,22 +1,28 @@
-/*
- * timers.h
- *
- *  Created on: Feb 20, 2020
- *      Author: William Bozarth
- */
+// timer.h
+// William Bozarth
+// Created on: February 20, 2020
+
+//-----------------------------------------------------------------------------
+// Hardware Target
+//-----------------------------------------------------------------------------
+
+// Target Platform: EK-TM4C123GXL Evaluation Board
+// Target uC:       TM4C123GH6PM
+// System Clock:    40 MHz
+
+// Hardware configuration:
+// Timer 4
 
 #ifndef TIMERS_H_
 #define TIMERS_H_
 
 #include "timers.h"
 
-#define NUM_TIMERS 10
+#define NUM_TIMERS  10
+#define MULT_FACTOR 1000
 
-extern bool renewRequest;
-extern bool rebindRequest;
-extern bool releaseRequest;
-extern bool arpResponseRx;
-extern bool sendMqttPing;
+//extern bool arpResponseRx;
+//extern bool sendMqttPing;
 extern uint32_t leaseTime;
 extern uint8_t dhcpRequestType;
 
@@ -35,7 +41,6 @@ bool restartTimer(_callback callback);
 void resetAllTimers(void);
 void tickIsr(void);
 uint32_t random32(void);
-void mqttPing(void);
 void clearRedLed(void);
 void clearBlueLed(void);
 void clearGreenLed(void);

@@ -43,7 +43,7 @@ void setUart0BaudRate(uint32_t baudRate, uint32_t fcyc);
 void writeToQueue(char c);
 bool kbhitUart0(void);
 char getcUart0(void);
-void initUart0(void);
+void initUart0(uint32_t baudRate, uint32_t fcyc);
 char readFromQueue(void);
 bool emptyRingBuffer(void);
 bool fullRingBuffer(void);

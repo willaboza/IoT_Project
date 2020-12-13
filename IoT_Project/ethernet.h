@@ -151,6 +151,7 @@ extern uint8_t  ipAddress[IP_ADD_LENGTH];
 extern uint8_t  ipSubnetMask[IP_ADD_LENGTH];
 extern uint8_t  ipGwAddress[IP_ADD_LENGTH];
 extern uint8_t  ipDnsAddress[IP_ADD_LENGTH];
+extern uint8_t data[MAX_PACKET_SIZE];
 extern bool     dhcpEnabled;
 
 // ------------------------------------------------------------------------------
@@ -282,5 +283,6 @@ uint32_t htons32(uint32_t value);
 void displayConnectionInfo(void);
 void displayIfconfigInfo(void);
 void setStaticNetworkAddresses(void);
+void setAddressInfo(void* data, uint8_t add[], uint8_t sizeInBytes);
 
 #endif /* ETHERNET_H_ */

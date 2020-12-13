@@ -55,11 +55,11 @@ bool readDeviceConfig(void)
 {
     if(readEeprom(0x0010) == 0xFFFFFFFF) // If statement evaluates to TRUE if NOT in DHCP Mode
     {
+        getAddressInfo(mqttIpAddress, 0x0001, 4);    // Get MQTT Broker IP address
+        getAddressInfo(mqttMacAddress, 0x0002, 6);   // Get MQTT Broker MAC Address
+
         // Initialize ENCJ2860 module
         initEthernetInterface(false);
-
-        // Output to terminal configuration info
-        displayConnectionInfo();
 
         return false;
     }
@@ -74,12 +74,11 @@ bool readDeviceConfig(void)
         getAddressInfo(serverIpAddress, 0x0013, 4);  // Get DHCP SERVER address
         getAddressInfo(ipSubnetMask, 0x0014, 4);     // Get SN mask
         getAddressInfo(serverMacAddress, 0x0015, 6); // Get Server MAC Address
+        getAddressInfo(mqttIpAddress, 0x0001, 4);    // Get MQTT Broker IP address
+        getAddressInfo(mqttMacAddress, 0x0002, 6);   // Get MQTT Broker MAC Address
 
         // Initialize ENCJ2860 module
         initEthernetInterface(true);
-
-        // Output to terminal configuration info
-        displayConnectionInfo();
 
         return true;
     }
@@ -357,38 +356,38 @@ void sendDhcpRequestMessage(uint8_t packet[])
     switch(nextDhcpState)
     {
     case SELECTING:
-        setDhcpAddressInfo(&ether->destAddress, broadcastAddress, HW_ADD_LENGTH);
-        setDhcpAddressInfo(&ether->sourceAddress, macAddress, HW_ADD_LENGTH);
-        setDhcpAddressInfo(&ip->destIp, broadcastAddress, IP_ADD_LENGTH);
-        setDhcpAddressInfo(&ip->sourceIp, unicastAddress, IP_ADD_LENGTH);
+        setAddressInfo(&ether->destAddress, broadcastAddress, HW_ADD_LENGTH);
+        setAddressInfo(&ether->sourceAddress, macAddress, HW_ADD_LENGTH);
+        setAddressInfo(&ip->destIp, broadcastAddress, IP_ADD_LENGTH);
+        setAddressInfo(&ip->sourceIp, unicastAddress, IP_ADD_LENGTH);
 
         // Set next state
         nextDhcpState = REQUESTING;
         break;
     case INIT_REBOOT:
-        setDhcpAddressInfo(&ether->destAddress, broadcastAddress, HW_ADD_LENGTH);
-        setDhcpAddressInfo(&ether->sourceAddress, macAddress, HW_ADD_LENGTH);
-        setDhcpAddressInfo(&ip->destIp, serverIpAddress, IP_ADD_LENGTH);
-        setDhcpAddressInfo(&ip->sourceIp, ipAddress, IP_ADD_LENGTH);
+        setAddressInfo(&ether->destAddress, broadcastAddress, HW_ADD_LENGTH);
+        setAddressInfo(&ether->sourceAddress, macAddress, HW_ADD_LENGTH);
+        setAddressInfo(&ip->destIp, serverIpAddress, IP_ADD_LENGTH);
+        setAddressInfo(&ip->sourceIp, ipAddress, IP_ADD_LENGTH);
 
         // Set next state
         nextDhcpState = REBOOTING;
         break;
     case BOUND:
         //setDhcpAddressInfo(&ether->destAddress, broadcastAddress, HW_ADD_LENGTH);
-        setDhcpAddressInfo(&ether->destAddress, serverMacAddress, HW_ADD_LENGTH);
-        setDhcpAddressInfo(&ether->sourceAddress, macAddress, HW_ADD_LENGTH);
-        setDhcpAddressInfo(&ip->destIp, serverIpAddress, IP_ADD_LENGTH);
-        setDhcpAddressInfo(&ip->sourceIp, ipAddress, IP_ADD_LENGTH);
+        setAddressInfo(&ether->destAddress, serverMacAddress, HW_ADD_LENGTH);
+        setAddressInfo(&ether->sourceAddress, macAddress, HW_ADD_LENGTH);
+        setAddressInfo(&ip->destIp, serverIpAddress, IP_ADD_LENGTH);
+        setAddressInfo(&ip->sourceIp, ipAddress, IP_ADD_LENGTH);
 
         // Set next state
         nextDhcpState = RENEWING;
         break;
     case RENEWING:
-        setDhcpAddressInfo(&ether->destAddress, broadcastAddress, HW_ADD_LENGTH);
-        setDhcpAddressInfo(&ether->sourceAddress, macAddress, HW_ADD_LENGTH);
-        setDhcpAddressInfo(&ip->destIp, broadcastAddress, IP_ADD_LENGTH);
-        setDhcpAddressInfo(&ip->sourceIp, ipAddress, IP_ADD_LENGTH);
+        setAddressInfo(&ether->destAddress, broadcastAddress, HW_ADD_LENGTH);
+        setAddressInfo(&ether->sourceAddress, macAddress, HW_ADD_LENGTH);
+        setAddressInfo(&ip->destIp, broadcastAddress, IP_ADD_LENGTH);
+        setAddressInfo(&ip->sourceIp, ipAddress, IP_ADD_LENGTH);
 
         // Set next state
         nextDhcpState = REBINDING;
@@ -836,12 +835,6 @@ uint8_t dhcpOfferType(uint8_t packet[])
     return type;
 }
 
-// Add DHCP Option info
-void setDhcpOption(void* data, uint8_t option, uint8_t optionLength, uint8_t dhcpLength)
-{
-    //uint8_t* pData = (uint8_t*)data;
-}
-
 // Return to INIT state if DHCPNAK Rx'd
 void dhcpNackHandler(uint8_t packet[])
 {
@@ -860,7 +853,7 @@ void dhcpNackHandler(uint8_t packet[])
 // DHCP "WAIT" TIMER, sends DHCPDISOVER message after 10 seconds has elapsed
 void waitTimer(void)
 {
-    uint8_t data[MAX_PACKET_SIZE] = {0};
+    //uint8_t data[MAX_PACKET_SIZE] = {0};
 
     // Send another DHCPDISCOVER message
     (*dhcpLookup(INIT, DHCPDISCOVERY_EVENT))(data);
@@ -870,19 +863,19 @@ void waitTimer(void)
 void LeaseAddressHandler(uint8_t packet[])
 {
     // Start lease Timer
-    startOneShotTimer(leaseExpHandler, leaseTime);
+    startOneShotTimer(leaseExpHandler, leaseTime * MULT_FACTOR);
 
     // Start Renew Timer
-    startOneShotTimer(renewalTimer, (leaseTime / (2 * LEASE_TIME_DIVISOR)));
+    startOneShotTimer(renewalTimer, ((leaseTime * MULT_FACTOR) / (2 * LEASE_TIME_DIVISOR)));
 
     // Start Rebind Timer
-    startOneShotTimer(rebindTimer, ((leaseTime * 7) / (8 * LEASE_TIME_DIVISOR)));
+    startOneShotTimer(rebindTimer, ((leaseTime * MULT_FACTOR * 7) / (8 * LEASE_TIME_DIVISOR)));
 
-    // Send Gratuitous ARP Request
+    // Send ARP probe
     sendArpProbe(packet);
 
     // Start ARP Response timer
-    startOneShotTimer(arpResponseTimer, 2);
+    startOneShotTimer(arpResponseTimer, 2 * MULT_FACTOR);
 }
 
 // Re-start renewal and rebind timers
@@ -903,7 +896,7 @@ void resetTimers(void)
 // Unicast DHCPREQUEST message when renewal timer elapses
 void renewalTimer(void)
 {
-    uint8_t data[MAX_PACKET_SIZE] = {0};
+    //uint8_t data[MAX_PACKET_SIZE] = {0};
 
     (*dhcpLookup(BOUND, DHCPREQUEST_EVENT))(data);
 
@@ -915,7 +908,7 @@ void renewalTimer(void)
 // Broadcast DHCPREQUEST message when renewal timer elapses
 void rebindTimer(void)
 {
-    uint8_t data[MAX_PACKET_SIZE] = {0};
+    //uint8_t data[MAX_PACKET_SIZE] = {0};
 
     (*dhcpLookup(RENEWING, DHCPREQUEST_EVENT))(data);
 
@@ -927,8 +920,6 @@ void rebindTimer(void)
 //
 void leaseExpHandler(void)
 {
-    uint8_t data[MAX_PACKET_SIZE] = {0};
-
     // Stop Timers before changing states
     stopTimer(leaseExpHandler);
     stopTimer(renewalTimer);
@@ -944,10 +935,6 @@ void leaseExpHandler(void)
 // 2-Second Timer to wait for any A
 void arpResponseTimer(void)
 {
-    uint8_t data[MAX_PACKET_SIZE] = {0};
-
-    sendArpAnnouncement(data);
-
     stopTimer(arpResponseTimer);
 
     // Store device configuration information
@@ -957,23 +944,17 @@ void arpResponseTimer(void)
     storeAddressEeprom(ipSubnetMask, 0x0014, 4);     // Store SN mask
     storeAddressEeprom(serverMacAddress, 0x0015, 6); // Store Server MAC address
 
-    sendGratuitousArpResponse(data);
+    sendArpAnnouncement(data);
 
     // Transition to next state
     nextDhcpState = BOUND;
+
+    startPeriodicTimer(periodicallyAnnounceAddress, 120 * MULT_FACTOR);
 }
 
-// Use to set the various ether or IP address info
-void setDhcpAddressInfo(void* data, uint8_t add[], uint8_t sizeInBytes)
+void periodicallyAnnounceAddress(void)
 {
-    uint8_t i;
-    uint8_t* pData = (uint8_t*)data;
-
-    for (i = 0; i < sizeInBytes; i++)
-    {
-        *pData = add[i];
-        pData++;
-    }
+    sendArpAnnouncement(data);
 }
 
 // Lookup requested callback function

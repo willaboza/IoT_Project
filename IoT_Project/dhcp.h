@@ -94,16 +94,15 @@ bool etherIsDhcp(uint8_t packet[]);
 uint8_t dhcpOfferType(uint8_t packet[]);
 void sendDhcpInformMessage(uint8_t packet[]);
 void sendDhcpDiscoverMessage(uint8_t packet[]);
-void setDhcpOption(void* data, uint8_t option, uint8_t optionLength, uint8_t dhcpLength);
 void LeaseAddressHandler(uint8_t packet[]);
 void dhcpNackHandler(uint8_t packet[]);
 void renewalTimer(void);
 void rebindTimer(void);
 void arpResponseTimer(void);
 void leaseExpHandler(void);
-void setDhcpAddressInfo(void* data, uint8_t add[], uint8_t sizeInBytes);
 void waitTimer(void);
 void resetTimers(void);
+void periodicallyAnnounceAddress(void);
 
 _dhcpCallback dhcpLookup(dhcpSysState state, dhcpSysEvent event);
 

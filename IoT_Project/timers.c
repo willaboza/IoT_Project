@@ -1,11 +1,12 @@
-// Timer Service Library
-// Jason Losh
+// timer.c
+// William Bozarth
+// Created on: February 20, 2020
 
 //-----------------------------------------------------------------------------
 // Hardware Target
 //-----------------------------------------------------------------------------
 
-// Target Platform: EK-TM4C123GXL
+// Target Platform: EK-TM4C123GXL Evaluation Board
 // Target uC:       TM4C123GH6PM
 // System Clock:    40 MHz
 
@@ -26,13 +27,9 @@
 
 uint8_t dhcpRequestsSent = 0;
 uint8_t dhcpRequestType  = 0;
-
-bool renewRequest   = false;
-bool rebindRequest  = true;
-bool releaseRequest = false;
 uint32_t leaseTime  = 0;
-bool arpResponseRx  = false;
-bool sendMqttPing = false;
+//bool arpResponseRx  = false;
+//bool sendMqttPing = false;
 
 bool reload[NUM_TIMERS]     = {0};
 uint32_t period[NUM_TIMERS] = {0};
@@ -48,13 +45,14 @@ void initTimer(void)
     SYSCTL_RCGCTIMER_R |= SYSCTL_RCGCTIMER_R4;
     _delay_cycles(3);
 
-    TIMER4_CTL_R   &= ~TIMER_CTL_TAEN;                     // turn-off counter before reconfiguring
-    TIMER4_CFG_R   = TIMER_CFG_32_BIT_TIMER;               // configure as 32-bit counter
-    TIMER4_TAMR_R  = TIMER_TAMR_TAMR_PERIOD;               // configure for one-shot mode, count down
-    TIMER4_TAILR_R = 40000000;
+    TIMER4_CTL_R   &= ~TIMER_CTL_TAEN;       // turn-off counter before reconfiguring
+    TIMER4_CFG_R   = TIMER_CFG_32_BIT_TIMER; // configure as 32-bit counter
+    TIMER4_TAMR_R  = TIMER_TAMR_TAMR_PERIOD; // configure for one-shot mode, count down
+    //TIMER4_TAILR_R = 40000000;
+    TIMER4_TAILR_R = 40000;                  // Need to have a 1 kHz clock
     TIMER4_CTL_R   |= TIMER_CTL_TAEN;
-    TIMER4_IMR_R   |= TIMER_IMR_TATOIM;                    // enable interrupts
-    NVIC_EN2_R     |= 1 << (INT_TIMER4A-80);             // turn-on interrupt 86 (TIMER4A)
+    TIMER4_IMR_R   |= TIMER_IMR_TATOIM;      // enable interrupts
+    NVIC_EN2_R     |= 1 << (INT_TIMER4A-80); // turn-on interrupt 86 (TIMER4A)
 
     // Set initial timer values
     for(i = 0; i < NUM_TIMERS; i++)
@@ -179,12 +177,6 @@ void tickIsr(void)
 uint32_t random32(void)
 {
     return TIMER4_TAV_R;
-}
-
-void mqttPing(void)
-{
-    sendMqttPing = true;
-    stopTimer(mqttPing);
 }
 
 // Turn off on board Red LED after elapsed time
