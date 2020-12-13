@@ -15,16 +15,26 @@
 
 #include "tcp.h"
 
+#define TIME_TO_LIVE 60
+
+// Transmission control block (Stores info about):
+//     - endpoints (IP and port)
+//     - status of connection
+//     - running data about the packets that are being exchanged
+//     - buffers for sending and receiving data
 typedef struct _transCtrlBlock
 {
     uint32_t prevSeqNum;
     uint32_t prevAckNum;
+    uint32_t currentSeqNum;
+    uint32_t currentAckNum;
 } transCtrlBlock;
 
 extern transCtrlBlock tcb;
 
 typedef enum
 {
+    NOPE = 0,
     FIN = 1,
     SYN = 2,
     RST = 4,
@@ -41,6 +51,7 @@ typedef enum
 {
     CLOSED,       //
     LISTEN,       //
+    SYN_SENT,     //
     SYN_RECEIVED, //
     ESTABLISHED,  //
     FIN_WAIT_1,   //
@@ -48,7 +59,7 @@ typedef enum
     CLOSING,      //
     TIME_WAIT,    //
     CLOSE_WAIT,   //
-    LAST_ACK      //
+    LAST_ACK,     //
 } tcpSysState;
 
 extern tcpSysState nextTcpState;
@@ -98,12 +109,11 @@ bool etherIsTcp(uint8_t packet[]);
 uint16_t etherIsTcpMsgType(uint8_t packet[]);
 void tcpAckReceived(uint8_t packet[]);
 void sendTcpMessage(uint8_t packet[], uint16_t flags);
-void getTcpData(uint8_t packet[]);
 bool checkForDuplicates(uint8_t packet[]);
-void sendTcpSyn(uint8_t packet[], uint16_t flags, uint16_t port);
 _tcpCallback tcpLookup(tcpSysState state, tcpSysEvent event);
 void setUpTcb(void);
 void tcpEstablished(void);
 void tcpClose(void);
+uint16_t getTcpHeaderSize(uint8_t size, uint16_t dataOffset);
 
 #endif /* TCP_H_ */

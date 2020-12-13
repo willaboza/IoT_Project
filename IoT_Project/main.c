@@ -40,7 +40,9 @@ void initHw(void)
 
     // Enable clocks
     enablePort(PORTF);
+    _delay_cycles(3);
     enablePort(PORTB);
+    _delay_cycles(3);
     enablePort(PORTC);
     _delay_cycles(3);
 
@@ -53,9 +55,20 @@ void initHw(void)
 
 int main(void)
 {
+    // Declare Variables
+    bool ok;
+    USER_DATA userInput = {.delimeter = true,
+                           .endOfString = false,
+                           .fieldCount = 0,
+                           .startCount = 0,
+                           .characterCount = 0,
+    };
+
+    //uint8_t data[MAX_PACKET_SIZE] = {0};
+
     // Initialize Hardware
     initHw();
-    initUart0();
+    initUart0(115200, 40e6);
     initSpi0(USE_SSI0_RX, 4e6, 40e6);
     initEeprom();
     initTimer();
@@ -63,13 +76,14 @@ int main(void)
     //initRtc();
     //initWatchdog();
 
-    // Declare Variables
-    bool ok;
-    USER_DATA userInput = {0};
-    uint8_t data[MAX_PACKET_SIZE] = {0};
+    // Display current ifconfig values and send DHCPREQUEST if Rebooting device
+    ok = readDeviceConfig();
 
-    // Setup UART0 Baud Rate
-    setUart0BaudRate(115200, 40e6);
+    // Output to terminal configuration info
+    displayConnectionInfo();
+
+    //Print Main Menu
+    printMainMenu();
 
     // Flash Green LED (on-board)
     setPinValue(GREEN_LED, 1);
@@ -77,63 +91,35 @@ int main(void)
     setPinValue(GREEN_LED, 0);
     waitMicrosecond(100000);
 
-    // Set Initial values for User Input
-    resetUserInput(&userInput);
-
-    // Display current ifconfig values and send DHCPREQUEST if Rebooting device
-    ok = readDeviceConfig();
-
-    //Print Main Menu
-    printMainMenu();
-
     if(ok)
         sendDhcpRequestMessage(data);
     else
+    {
         sendArpAnnouncement(data);
+        startPeriodicTimer(periodicallyAnnounceAddress, 120 * MULT_FACTOR);
+    }
 
     while(true)
     {
-
-        // If User Input detected, then process input
-        if(kbhitUart0())
-        {
-            // Get User Input
-            if(getsUart0(&userInput))
-                shellCommands(&userInput, data);
-            else
-                parseFields(&userInput); // Tokenize User Input
-        }
-
         // Packet processing if available
         if(etherIsDataAvailable())
         {
-            if (etherIsOverflow())
+            if(etherIsOverflow())
             {
                 // Set on-board Red LED to alert of Ethernet device overflow
                 setPinValue(RED_LED, 1);
 
                 // Start timer to clear Red LED after time has elapsed
-                startOneShotTimer(clearRedLed, 3);
+                startOneShotTimer(clearRedLed, 3 * MULT_FACTOR);
             }
 
             // Get packet
             etherGetPacket(data, MAX_PACKET_SIZE);
 
             // Handles IP messages
-            if (etherIsIp(data))
+            if(etherIsIp(data))
             {
-                // Handles DHCP messages
-                if(etherIsDhcp(data))
-                {
-                    // Get next DHCP state event
-                    dhcpSysEvent nextDhcpEvent = (dhcpSysEvent)dhcpOfferType(data);
-
-                    // If DHCP msg rx'd then transition to next state
-                    (*dhcpLookup(nextDhcpState, nextDhcpEvent))(data);
-                }
-
-                // Handles TCP packets
-                if(etherIsTcp(data))
+                if(etherIsTcp(data)) // Handles TCP packets
                 {
                     // Get next TCP state event
                     uint16_t nextTcpEvent = etherIsTcpMsgType(data);
@@ -141,17 +127,19 @@ int main(void)
                     // If DHCP msg rx'd then transition to next state
                     (*tcpLookup(nextTcpState, (tcpSysEvent)nextTcpEvent))(data, nextTcpEvent);
                 }
+                else if(etherIsDhcp(data)) // Handles DHCP messages
+                {
+                    // Get next DHCP state event
+                    dhcpSysEvent nextDhcpEvent = (dhcpSysEvent)dhcpOfferType(data);
 
-                if(!etherIsGratuitousResponse(data))
-                {
-                    int num = 0;
+                    // If DHCP msg rx'd then transition to next state
+                    (*dhcpLookup(nextDhcpState, nextDhcpEvent))(data);
                 }
-                else if (etherIsArpRequest(data)) // Handle ARP request or response
+                else if(etherIsArpRequest(data)) // Handle ARP request
                 {
-                    sendArpAnnouncement(data);
-                    //etherSendArpResponse(data);
+                    etherSendArpResponse(data);
                 }
-                else if(etherIsArpResponse(data))
+                else if(etherIsArpResponse(data)) // Handle ARP response
                 {
                     // If ARP Response received before 2 second timer elapses
                     // then send decline message, invalidate IP and use static IP,
@@ -159,13 +147,22 @@ int main(void)
                     stopTimer(arpResponseTimer);
                     sendDhcpDeclineMessage(data);
                     setStaticNetworkAddresses();
-                    startOneShotTimer(waitTimer, 10);
+                    startOneShotTimer(waitTimer, 10 * MULT_FACTOR);
                 }
+            }
+        }
 
-                if (etherIsPingRequest(data)) // handle icmp ping request
-                {
-                    etherSendPingResponse(data);
-                }
+        // If User Input detected, then process input
+        if(kbhitUart0())
+        {
+            // Get User Input
+            if(getsUart0(&userInput))
+            {
+                shellCommands(&userInput, data);
+            }
+            else
+            {
+                parseFields(&userInput); // Tokenize User Input
             }
         }
     }
