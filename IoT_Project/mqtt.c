@@ -24,7 +24,6 @@
 #include "timers.h"
 
 mqttTopics topics[MQTT_MAX_TABLE_SIZE] = {0};
-mqttParserInfo mqttParser = {0};
 uint8_t mqttIpAddress[MQTT_ADD_LENGTH] = {0};
 uint8_t mqttMacAddress[MQTT_HW_ADD_LENGTH] = {0};
 uint8_t mqttMsgType = 0;
@@ -80,23 +79,22 @@ void createEmptySlot(char info[])
 }
 
 // Determines whether packet is MQTT
-bool mqttMessage(uint8_t packet[])
+bool isMqttMessage(uint8_t packet[])
 {
+    uint16_t index;
+
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip = (ipFrame*)&ether->data;
     tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
 
-    // If Source Port = 1883 it is a MQTT packet.
-    if(htons(tcp->sourcePort) == 1883)
-        return true;
     // Find where data begins for TCP Header and then point the mqttFrame to that index
-    // index = (((htons(tcp->dataCtrlFields) & 0xF000) >> 12) - 5) * 4;
-    // mqttFrame *mqtt   = (mqttFrame*)&tcp->data[index];
+    index = (((htons(tcp->dataCtrlFields) & 0xF000) >> 12) - 5) * 4;
+    mqttFrame *mqtt   = (mqttFrame*)&tcp->data[index];
 
     // If Source Port = 1883 it is a MQTT packet.
     // Further filter for only MQTT Publish packets received from broker
-    // if(htons(tcp->sourcePort) == 1883 && (mqtt->control & 0xF0) == 48)
-    //    return true;
+    if(htons(tcp->sourcePort) == 1883 && (mqtt->control & 0xF0) == 48)
+        return true;
 
     return false;
 }
@@ -166,50 +164,6 @@ uint32_t decodeRemainingLength(uint8_t packet[])
 
 }
 */
-
-uint8_t appendMqttMessage(uint8_t packet[], uint8_t msgType)
-{
-    uint8_t i = 0;
-
-    etherFrame* ether = (etherFrame*)packet;
-    ipFrame* ip       = (ipFrame*)&ether->data;
-    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
-    mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
-
-    switch(msgType)
-    {
-    case CONNECT:
-        break;
-    case CONNACK:
-        break;
-    case PUBLISH:
-        break;
-    case PUBACK:
-        break;
-    case PUBREC:
-        break;
-    case PUBREL:
-        break;
-    case PUBCOMP:
-        break;
-    case SUBSCRIBE:
-        break;
-    case UNSUBSCRIBE:
-        break;
-    case UNSUBACK:
-        break;
-    case PINGREQ:
-        break;
-    case PINGRESP:
-        break;
-    case DISCONNECT:
-        break;
-    default:
-        break;
-    }
-
-    return (i + 2);
-}
 
 // Connect Variable Header Contains: Protocol Name, Protocol Level, Connect Flags, Keep Alive, and Properties
 void sendMqttConnectMessage(uint8_t packet[], uint16_t flags)
@@ -520,7 +474,7 @@ void sendMqttPingRequest(uint8_t packet[], uint16_t flags)
 }
 
 // MQTT Connect+Ack Message
-void mqttPublish(uint8_t packet[], uint16_t flags, char topic[], char data[])
+void sendMqttPublish(uint8_t packet[], uint16_t flags, char topic[], char data[])
 {
     uint8_t i = 0, k;
     uint16_t tcpSize = 0, tmp16 = 0, length, packetId;
@@ -533,7 +487,7 @@ void mqttPublish(uint8_t packet[], uint16_t flags, char topic[], char data[])
     // Fill etherFrame
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
-        ether->destAddress[i]   = mqttIpAddress[i];
+        ether->destAddress[i]   = mqttMacAddress[i];
         ether->sourceAddress[i] = macAddress[i];
     }
 

@@ -62,35 +62,22 @@ typedef struct _mqttTopics
     char subs[MQTT_MAX_SUB_CHARS];
 } mqttTopics;
 
-typedef struct _mqttParserInfo
-{
-    bool    delimeter;
-    bool    endOfString;
-    uint8_t fieldCount;
-    uint8_t startCount;
-    uint8_t characterCount;
-    uint8_t fieldPosition[MQTT_MAX_FIELD_SIZE];
-    char    fieldType[MQTT_MAX_FIELD_SIZE];
-} mqttParserInfo;
-
 extern mqttTopics topics[MQTT_MAX_TABLE_SIZE];
-extern mqttParserInfo mqttParser;
 
 uint8_t getMqttMsgType(uint8_t packet[]);
 void setMqttAddress(uint8_t mqtt0, uint8_t mqtt1, uint8_t mqtt2, uint8_t mqtt3);
 void getMqttAddress(uint8_t mqtt[]);
-bool mqttMessage(uint8_t packet[]);
+bool isMqttMessage(uint8_t packet[]);
 void sendMqttConnectMessage(uint8_t packet[], uint16_t flags);
 void mqttConnectAckMessage(uint8_t packet[]);
 void sendMqttDisconnectMessage(uint8_t packet[] , uint16_t flags);
 void sendMqttPingRequest(uint8_t packet[], uint16_t flags);
 void mqttPubAckRec(uint8_t packet[], uint8_t type, uint16_t flags, uint16_t packetId);
-void mqttPublish(uint8_t packet[], uint16_t flags, char topic[], char data[]);
+void sendMqttPublish(uint8_t packet[], uint16_t flags, char topic[], char data[]);
 void mqttSubscribe(uint8_t packet[], uint16_t flags, char topic[]);
 void mqttUnsubscribe(uint8_t packet[], uint16_t flags, char topic[]);
 void createEmptySlot(char info[]);
 uint8_t findEmptySlot(void);
-uint8_t appendMqttMessage(uint8_t packet[], uint8_t msgType);
 void mqttMessageEstablished(void);
 void mqttPingTimerExpired(void);
 

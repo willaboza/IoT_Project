@@ -23,6 +23,15 @@
 #include "reboot.h"
 #include "timers.h"
 #include "tcp.h"
+#include "mqtt.h"
+
+MQTT_DATA mqttInfo = {.delimeter = true,
+                      .endOfString = false,
+                      .fieldCount = 0,
+                      .topicStartPosition = 0,
+                      .msgLength = 0,
+                      .topicLength = 0,
+};
 
 // Function to get Input from Terminal
 bool getsUart0(USER_DATA* data)
@@ -96,7 +105,7 @@ void parseFields(USER_DATA* data)
     // Get current Index for field arrays
     fieldIndex = data->fieldCount;
 
-    if('a' <= c && c <= 'z') // Verify is character is an alpha (case sensitive)
+    if('a' <= c && c <= 'z' || c == '/') // Verify is character is an alpha (case sensitive)
     {
         if(data->delimeter)
         {
@@ -123,58 +132,6 @@ void parseFields(USER_DATA* data)
     }
 }
 
-// Function to parse MQTT Packets when received
-void parseMqttPacket(uint8_t packet[], uint32_t start, uint32_t length)
-{
-    char    c;
-    uint8_t count, fieldIndex;
-
-//    count = data->characterCount - 1; // Subtract by one to get correct character count
-
-//    c = data->buffer[count];
-
-    // Check if at end of user input and exit function if so,
-    // or if backspace or delete was entered by user.
-    if(c == '\0' || count > MAX_CHARS || c == 8 || c == 127)
-        return;
-
-    // Get current Index for field arrays
-//    fieldIndex = data->fieldCount;
-/*
-    if('A' <= c && c <= 'Z')
-    {
-        packet[data->characterCount] = c + 32;
-        data->characterCount = (data->characterCount + 1) % MAX_CHARS;
-    }
-
-    if(('a' <= c && c <= 'z') || '#' == c) // Verify is character is an alpha (case sensitive)
-    {
-        if(data->delimeter)
-        {
-            data->fieldPosition[fieldIndex] = count;
-            data->fieldType[fieldIndex] = 'A';
-            data->fieldCount += 1;
-            data->delimeter = false;
-        }
-    }
-    else if(('0' <= c && c <= '9') || ',' == c ||  c == '.') //Code executes for numerics same as alpha
-    {
-        if(data->delimeter)
-        {
-            data->fieldPosition[fieldIndex] = count;
-            data->fieldType[fieldIndex] = 'N';
-            data->fieldCount += 1;
-            data->delimeter = false;
-        }
-    }
-    else // Insert NULL('\0') into character array if NON-alphanumeric character detected
-    {
-        data->buffer[count] = '\0';
-        data->delimeter = true;
-    }
-    */
-}
-
 // Function to Return a Token as a String
 void getFieldString(USER_DATA** data, char fieldString[], uint8_t fieldNumber)
 {
@@ -192,6 +149,26 @@ void getFieldString(USER_DATA** data, char fieldString[], uint8_t fieldNumber)
 
     // Add NULL to terminate string
     fieldString[index] = '\0';
+}
+
+// Function to Return a Token as a String
+void getMQTTString(MQTT_DATA** data, uint8_t packet[], char str1[], uint8_t fieldNumber)
+{
+    uint8_t offset, index = 0;
+
+    etherFrame* ether = (etherFrame*)packet;
+    ipFrame* ip = (ipFrame*)&ether->data;
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
+    mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
+
+    // Copy characters for return
+    for(offset = (*data)->fieldPosition[fieldNumber]; offset < (*data)->msgLength; offset++, index++)
+    {
+        str1[index] = mqtt->data[offset];
+    }
+
+    // Add NULL to terminate string
+    str1[index] = '\0';
 }
 
 // Function to Return a Token as an Integer
@@ -240,46 +217,91 @@ bool isCommand(USER_DATA** data, const char strCommand[], uint8_t minArguments)
     return ok;
 }
 
-/*
-// Returns value of current argument for shell commands
-uint8_t getArgument(USER_DATA** data)
+// Function to concatenate user input for MQTT payload
+char* concatPayload(char str1[], char str2[], uint8_t index)
 {
-    // Handle edge case of no more input commands to process
-    if((*data)->fieldCount == 0)
-        return 0;
+    char       *s1 = str1;
+    const char *s2 = str2;
 
+    while (*s1) s1++;        // Find end of string
 
-    (*data)->fieldCount--;
+    if(index != 2)       // APPEND space before next word
+        (*s1++ = ' ');
+
+    while ((*s1++ = *s2++)); // Append 2nd string
+
+    return str1;
 }
-*/
 
 // Function to process incoming MQTT Messages
-void processMqttMessage(uint8_t packet[])
+void processMqttMessage(MQTT_DATA* data, uint8_t packet[])
 {
-    uint16_t msgLength, payloadLength, k,i;
-    uint32_t topicLength;
+    char c;
+    uint8_t fieldIndex;
+    uint16_t payloadLength, i;
 
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip = (ipFrame*)&ether->data;
-    ip->revSize       = 0x45; // Four-bit Version field = 4 and IHL = 5 indicating the size is 20 bytes. (69 decimal or 0x45h)
-    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
     mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
 
-    msgLength = mqtt->packetLength; // Get Message Length
+    mqttInfo.msgLength = mqtt->packetLength; // Get length of packet
 
-    i = 0;
-    topicLength = mqtt->data[i++] << 8; // Topic Length MSB
-    topicLength = mqtt->data[i++];      // Topic Length LSB
+    i = mqttInfo.topicLength = 0;
+    mqttInfo.topicLength |= mqtt->data[i++] << 8; // Topic Length MSB
+    mqttInfo.topicLength |= mqtt->data[i++];      // Topic Length LSB
 
-    k = 0;
+    mqttInfo.topicStartPosition = i; // Don't need topicStartPosition
+
+    payloadLength = mqtt->packetLength - mqttInfo.topicLength - 2 - i; // Get payload Length
+
+    // Get current Index for field arrays
+    fieldIndex = data->fieldCount = 0;
+    data->delimeter = true;
+
     // Process Topic of PUBLISH Packet
-    while(k < topicLength)
+    while(i < mqttInfo.topicLength)
     {
-//        topic->buffer[k++] = mqtt->data[i++];
-    }
-//    topic->buffer[k++] = '\0';
-//    topic->characterCount = k;
+        c = mqtt->data[i++];
 
+        if('a' <= c && c <= 'z' || 'A' <= c && c <= 'Z') // Verify is character is an alpha (case sensitive)
+        {
+            if(data->delimeter)
+            {
+                data->fieldPosition[fieldIndex] = i - 1;
+                data->fieldType[fieldIndex++] = 'A';
+                data->fieldCount += 1;
+                data->delimeter = false;
+            }
+        }
+        else if('0' <= c && c <= '9') //Code executes for numerics same as alpha
+        {
+            if(data->delimeter)
+            {
+                data->fieldPosition[fieldIndex] = i - 1;
+                data->fieldType[fieldIndex++] = 'N';
+                data->fieldCount += 1;
+                data->delimeter = false;
+            }
+        }
+        else if(c == '#') //Code executes # as wild-card
+        {
+            if(data->delimeter)
+            {
+                data->fieldPosition[fieldIndex] = i - 1;
+                data->fieldType[fieldIndex++] = 'W';
+                data->fieldCount += 1;
+                data->delimeter = false;
+            }
+        }
+        else // Insert NULL('\0') into character array if NON-alphanumeric character detected
+        {
+            data->delimeter = true;
+        }
+    }
+
+    data->fieldPosition[fieldIndex] = mqttInfo.topicStartPosition + mqttInfo.topicLength + 2;
+/*
     // If QoS Level Set then Look for Packet Identifier
     if((mqtt->control & 0x06) == 0x02 || (mqtt->control & 0x0F) == 0x04)
     {
@@ -295,44 +317,35 @@ void processMqttMessage(uint8_t packet[])
 //            sendPubrecFlag = true;
         }
     }
-
-    payloadLength = msgLength - topicLength - 2;
-
-    k = 0;
-    // Process Payload of PUBLISH Packet
-    while(k < payloadLength)
-    {
-//        data->buffer[k++] = mqtt->data[i++];
-    }
-//    data->buffer[k++] = '\0';
-//    data->characterCount = k;
+*/
 }
 
 // Function Used to Determine if Correct Command Entered
-bool isMqttCommand(USER_DATA* data, const char strCommand[], uint8_t minArguments)
+bool isMqttCommand(MQTT_DATA** data, uint8_t packet[], const char strCommand[], uint8_t pos, uint8_t minArguments)
 {
-    bool ok = false;
     int val;
     uint8_t c1, c2, offset, index = 0;
-/*
+
+    etherFrame* ether = (etherFrame*)packet;
+    ipFrame* ip = (ipFrame*)&ether->data;
+    tcpFrame *tcp     = (tcpFrame*)((uint8_t*)ip + ((0x45 & 0xF) * 4));
+    mqttFrame *mqtt   = (mqttFrame*)&tcp->data;
+
     if((*data)->fieldCount < minArguments)
         return false;
 
-    offset = (*data)->fieldPosition[0];
+    offset = (*data)->fieldPosition[pos];
 
     while((c1 = strCommand[index++]) != '\0')
     {
-        c2 = (*data)->buffer[offset++];
+        c2 = mqtt->data[offset++];
         val = c1 - c2;
 
         if(val != 0 || c2 == 0)
             return false;
-
-        offset %= MAX_CHARS;
-        ok = true;
     }
-*/
-    return ok;
+
+    return true;
 }
 
 // Function to Print Current Subscribed topics
@@ -449,16 +462,22 @@ void shellCommands(USER_DATA* userInput, uint8_t packet[])
     }
     else if(isCommand(&userInput, "publish", 3))
     {
+        uint8_t i;
         char str[MAX_CHARS + 1];
 
-        // Retrieve network configuration parameter
+        // Get MQTT payload to publish
+        for(i = 2; i < userInput->fieldCount; i++)
+        {
+            getFieldString(&userInput, str, i);
+
+            concatPayload(token, str, i);
+        }
+
+        // Get MQTT topic to publish
         getFieldString(&userInput, str, 1);
 
-        // Retrieve network configuration parameter
-        getFieldString(&userInput, token, 2);
-
-        // MQTT Publish Packet
-        mqttPublish(packet, 0x5018, str, token);
+        // send MQTT Publish Packet
+        sendMqttPublish(packet, 0x5018, str, token);
     }
     else if(isCommand(&userInput, "subscribe", 2))
     {
@@ -534,5 +553,76 @@ void shellCommands(USER_DATA* userInput, uint8_t packet[])
     else if(isCommand(&userInput, "reset", 1))
     {
         writeEeprom(0x0015, 0xFFFFFFFF); // Erase DHCP Mode in EEPROM
+    }
+}
+
+// Start of IFTTT Rules Table
+void ifttRulesTable(MQTT_DATA* mqttInput, uint8_t packet[])
+{
+    char buffer[50];
+
+    if(isMqttCommand(&mqttInput, packet, "env", 0, 2))
+    {
+        if(isMqttCommand(&mqttInput, packet, "temp", 1, 2))
+        {
+
+            getMQTTString(&mqttInput, packet, buffer, 2);
+
+            // Send Published Temperature to UART
+            //sprintf(str, "Degrees Celsius : %u", temp);
+            sendUart0String(buffer);
+            sendUart0String("\r\n");
+
+            // Update env/temp with more recent value and then MQTT Publish Packet
+            // sprintf(str, "%s", "env/temp");
+            // sprintf(buffer, "%u", instantTemp());
+            // mqttPublish(data, 0x5018, str, buffer);
+        }
+        else if(isMqttCommand(&mqttInput, packet, "led", 1, 2)) // Part of topic
+        {
+            if(isMqttCommand(&mqttInput, packet, "green", 2, 2)) // Part of topic
+            {
+                getMQTTString(&mqttInput, packet, buffer, 3);
+
+                if(strcmp(buffer, "on") == 0) // Part of payload
+                {
+                    setPinValue(GREEN_LED, 1); // Green LED ON
+                    sendUart0String("  GREEN LED ON\r\n");
+                }
+                else if(strcmp(buffer, "off") == 0) // Part of payload
+                {
+                    setPinValue(GREEN_LED, 0); // Green LED OFF
+                    sendUart0String("  GREEN LED OFF\r\n");
+                }
+            }
+            else if(isMqttCommand(&mqttInput, packet, "red", 2, 2))
+            {
+                getMQTTString(&mqttInput, packet, buffer, 3);
+                if(strcmp(buffer, "on") == 0)
+                {
+                    setPinValue(RED_LED, 1); // RedLED ON
+                    sendUart0String("  RED LED ON\r\n");
+                }
+                else if(strcmp(buffer, "off") == 0)
+                {
+                    setPinValue(RED_LED, 0); // RED LED OFF
+                    sendUart0String("  RED LED OFF\r\n");
+                }
+            }
+            else if(isMqttCommand(&mqttInput, packet, "blue", 2, 2))
+            {
+                getMQTTString(&mqttInput, packet, buffer, 3);
+                if(strcmp(buffer, "on") == 0) // Payload
+                {
+                    setPinValue(BLUE_LED, 1); // Blue LED ON
+                    sendUart0String("  BLUE LED ON\r\n");
+                }
+                else if(strcmp(buffer, "off") == 0) // Payload
+                {
+                    setPinValue(BLUE_LED, 0); // Blue LED OFF
+                    sendUart0String("  BLUE LED OFF\r\n");
+                }
+            }
+        }
     }
 }
