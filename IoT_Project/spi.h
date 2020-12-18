@@ -23,10 +23,7 @@
 #ifndef SPI_H_
 #define SPI_H_
 
-#include <stdint.h>
-#include <stdbool.h>
-#include "tm4c123gh6pm.h"
-#include "gpio.h"
+#include "spi.h"
 
 #define USE_SSI0_FSS 1
 #define USE_SSI0_RX  2
@@ -35,10 +32,10 @@
 // Subroutines
 //-----------------------------------------------------------------------------
 
-void initSpi0(uint32_t pinMask);
+void initSpi0(uint32_t pinMask, uint32_t clockRate, uint32_t fcyc);
 void setSpi0BaudRate(uint32_t clockRate, uint32_t fcyc);
 void setSpi0Mode(uint8_t polarity, uint8_t phase);
 void writeSpi0Data(uint32_t data);
-uint32_t readSpi0Data();
+uint32_t readSpi0Data(void);
 
 #endif /* SPI_H_ */

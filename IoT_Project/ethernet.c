@@ -1,39 +1,47 @@
-/*
- * ethernet.c
- *
- *  Created on: Feb 12, 2020 by William Bozarth
- *      Author: Jason Losh
- */
+// ethernet.c
+// William Bozarth
+// Created on: February 12, 2020
+
+//-----------------------------------------------------------------------------
+// Hardware Target
+//-----------------------------------------------------------------------------
+
+// Target Platform: EK-TM4C123GXL Evaluation Board
+// Target uC:       TM4C123GH6PM
+// System Clock:    40 MHz
 
 #include "ethernet.h"
 
-#define GREEN_LED PORTF,   3
-#define BLUE_LED PORTF,    2
+#define GREEN_LED PORTF, 3
+#define BLUE_LED  PORTF, 2
 
 // Buffer is configured as follows
 // Receive buffer starts at 0x0000 (bottom 6666 bytes of 8K space)
 // Transmit buffer at 01A0A (top 1526 bytes of 8K space)
-
 uint8_t nextPacketLsb = 0x00;
 uint8_t nextPacketMsb = 0x00;
 uint8_t sequenceId    = 1;
 uint32_t sum = 0;
 uint8_t macAddress[HW_ADD_LENGTH]       = {2,3,4,5,6,UNIQUE_ID};
 uint8_t serverMacAddress[HW_ADD_LENGTH] = {0,0,0,0,0,0};
+uint8_t broadcastAddress[HW_ADD_LENGTH] = {255,255,255,255,255,255};
+uint8_t unicastAddress[HW_ADD_LENGTH]   = {0,0,0,0,0,0};
 uint8_t ipAddress[IP_ADD_LENGTH]        = {192, 168, 1, UNIQUE_ID};
 uint8_t serverIpAddress[IP_ADD_LENGTH]  = {0,0,0,0};
 uint8_t ipSubnetMask[IP_ADD_LENGTH]     = {255,255,255,0};
 uint8_t ipGwAddress[IP_ADD_LENGTH]      = {192, 168, 1, 1};
 uint8_t ipDnsAddress[IP_ADD_LENGTH]     = {192, 168, 1, 1};
+uint8_t data[MAX_PACKET_SIZE] = {0};
+
 bool dhcpEnabled = true;
 
-void etherCsOn()
+void etherCsOn(void)
 {
     setPinValue(CS, 0);
     _delay_cycles(4);
 }
 
-void etherCsOff()
+void etherCsOff(void)
 {
     setPinValue(CS, 1);
 }
@@ -111,7 +119,7 @@ uint16_t etherReadPhy(uint8_t reg)
     return data;
 }
 
-void etherWriteMemStart()
+void etherWriteMemStart(void)
 {
     etherCsOn();
     writeSpi0Data(0x7A);
@@ -124,25 +132,25 @@ void etherWriteMem(uint8_t data)
     readSpi0Data();
 }
 
-void etherWriteMemStop()
+void etherWriteMemStop(void)
 {
     etherCsOff();
 }
 
-void etherReadMemStart()
+void etherReadMemStart(void)
 {
     etherCsOn();
     writeSpi0Data(0x3A);
     readSpi0Data();
 }
 
-uint8_t etherReadMem()
+uint8_t etherReadMem(void)
 {
     writeSpi0Data(0);
     return readSpi0Data();
 }
 
-void etherReadMemStop()
+void etherReadMemStop(void)
 {
     etherCsOff();
 }
@@ -151,18 +159,6 @@ void etherReadMemStop()
 // Uses order suggested in Chapter 6 of datasheet except 6.4 OST which is first here
 void etherInit(uint16_t mode)
 {
-    // Initialize SPI0
-    initSpi0(USE_SSI0_RX);
-    setSpi0BaudRate(4e6, 40e6);
-    setSpi0Mode(0, 0);
-
-    // Enable clocks
-    enablePort(PORTB);
-    enablePort(PORTC);
-
-    selectPinPushPullOutput(GREEN_LED);
-    selectPinPushPullOutput(BLUE_LED);
-
     // Configure pins for ethernet module
     selectPinPushPullOutput(CS);
     selectPinDigitalInput(WOL);
@@ -258,19 +254,19 @@ void etherInit(uint16_t mode)
 }
 
 // Returns true if link is up
-bool etherIsLinkUp()
+bool etherIsLinkUp(void)
 {
     return (etherReadPhy(PHSTAT1) & LSTAT) != 0;
 }
 
 // Returns TRUE if packet received
-bool etherIsDataAvailable()
+bool etherIsDataAvailable(void)
 {
     return ((etherReadReg(EIR) & PKTIF) != 0);
 }
 
 // Returns true if rx buffer overflowed after correcting the problem
-bool etherIsOverflow()
+bool etherIsOverflow(void)
 {
     bool err;
     err = (etherReadReg(EIR) & RXERIF) != 0;
@@ -397,7 +393,7 @@ void etherSumWords(void* data, uint16_t sizeInBytes)
 }
 
 // Completes 1's compliment addition by folding carries back into field
-uint16_t getEtherChecksum()
+uint16_t getEtherChecksum(void)
 {
     uint16_t result;
     // this is based on rfc1071
@@ -434,31 +430,33 @@ bool etherIsIp(uint8_t packet[])
 {
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip = (ipFrame*)&ether->data;
-    bool ok;
-    ok = (ether->frameType == htons(0x0800));
-    if (ok)
-    {
-        sum = 0;
-        etherSumWords(&ip->revSize, (ip->revSize & 0xF) * 4);
-        ok = (getEtherChecksum() == 0);
-    }
-    return ok;
+
+    if(ether->frameType != htons(0x0800))
+        return false;
+
+    sum = 0;
+    etherSumWords(&ip->revSize, (ip->revSize & 0xF) * 4);
+
+    return (getEtherChecksum() == 0);
 }
 
 // Determines whether packet is unicast to this ip
 // Must be an IP packet
 bool etherIsIpUnicast(uint8_t packet[])
 {
+    uint8_t i = 0;
+
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip = (ipFrame*)&ether->data;
-    uint8_t i = 0;
-    bool ok = true;
-    while (ok & (i < IP_ADD_LENGTH))
+
+    while (i < IP_ADD_LENGTH)
     {
-        ok = (ip->destIp[i] == ipAddress[i]);
+        if(ip->destIp[i] != ipAddress[i])
+            return false;
         i++;
     }
-    return ok;
+
+    return true;
 }
 
 // Determines whether packet is ping request
@@ -508,39 +506,64 @@ void etherSendPingResponse(uint8_t packet[])
 // Determines whether packet is ARP
 bool etherIsArpRequest(uint8_t packet[])
 {
+    uint8_t i = 0;
+
     etherFrame* ether = (etherFrame*)packet;
     arpFrame* arp = (arpFrame*)&ether->data;
-    bool ok;
-    uint8_t i = 0;
-    ok = (ether->frameType == htons(0x0806));
-    while (ok & (i < IP_ADD_LENGTH))
+
+    if(ether->frameType != htons(0x0806) || arp->op != htons(1))
+        return false;
+
+    while(i < IP_ADD_LENGTH)
     {
-        ok = (arp->destIp[i] == ipAddress[i]);
+        if(arp->destIp[i] != ipAddress[i])
+            return false;
         i++;
     }
-    if (ok)
-    {
-        ok = (arp->op == htons(1));
-    }
-    return ok;
+
+    return true;
 }
 
 // Determines whether packet is ARP
 bool etherIsArpResponse(uint8_t packet[])
 {
+    uint8_t i = 0;
+
     etherFrame* ether = (etherFrame*)packet;
     arpFrame* arp = (arpFrame*)&ether->data;
-    bool ok;
-    uint8_t i = 0;
-    ok = (ether->frameType == htons(0x0806));
-    while (ok & (i < IP_ADD_LENGTH))
+
+    if(ether->frameType != htons(0x0806) || arp->op != htons(2))
+        return false;
+
+    while (i < IP_ADD_LENGTH)
     {
-        ok = (arp->destIp[i] == ipAddress[i]);
+        if(arp->destIp[i] != ipAddress[i])
+            return false;
         i++;
     }
-    if (ok)
-        ok = (arp->op == htons(2));
-    return ok;
+
+    return true;
+}
+
+//
+bool etherIsGratuitousResponse(uint8_t packet[])
+{
+    uint8_t i = 0;
+
+    etherFrame* ether = (etherFrame*)packet;
+    arpFrame* arp = (arpFrame*)&ether->data;
+
+    if(ether->frameType != htons(0x0806) || arp->op != htons(2))
+        return false;
+
+    while (i < IP_ADD_LENGTH)
+    {
+        if(arp->sourceIp[i] != ipAddress[i])
+            return false;
+        i++;
+    }
+
+    return true;
 }
 
 // Sends an ARP response given the request data
@@ -571,32 +594,159 @@ void etherSendArpResponse(uint8_t packet[])
 // Sends an ARP request (Set-up as Gratuitous APR Request)
 void etherSendArpRequest(uint8_t packet[])
 {
+    uint8_t i;
+
     etherFrame* ether = (etherFrame*)packet;
     arpFrame* arp = (arpFrame*)&ether->data;
-    uint8_t i;
+
     // fill ethernet frame
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
         ether->destAddress[i] = 0xFF;
         ether->sourceAddress[i] = macAddress[i];
     }
+
     ether->frameType = htons(0x0806);
+
     // fill arp frame
     arp->hardwareType = htons(1);
     arp->protocolType = htons(0x0800);
     arp->hardwareSize = 6;
     arp->protocolSize = 4;
     arp->op = htons(1);
+
     for (i = 0; i < HW_ADD_LENGTH; i++)
     {
-        arp->sourceAddress[i] = macAddress[i];
         arp->destAddress[i] = 0xFF;
+        arp->sourceAddress[i] = macAddress[i];
     }
+
     for (i = 0; i < IP_ADD_LENGTH; i++)
     {
-        arp->sourceIp[i] = ipAddress[i];
         arp->destIp[i] = ipAddress[i];
+        arp->sourceIp[i] = ipAddress[i];
     }
+
+    // send packet
+    etherPutPacket((uint8_t *)ether, 42);
+}
+
+// Sends an ARP probe packet to detect any IP address conflicts
+void sendArpProbe(uint8_t packet[])
+{
+    uint8_t i;
+
+    etherFrame* ether = (etherFrame*)packet;
+    arpFrame* arp = (arpFrame*)&ether->data;
+
+    // fill ethernet frame
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        ether->destAddress[i] = 0xFF;
+        ether->sourceAddress[i] = macAddress[i];
+    }
+
+    ether->frameType = htons(0x0806);
+
+    // fill arp frame
+    arp->hardwareType = htons(1);
+    arp->protocolType = htons(0x0800);
+    arp->hardwareSize = 6;
+    arp->protocolSize = 4;
+    arp->op = htons(1);
+
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        arp->destAddress[i] = 0;
+        arp->sourceAddress[i] = macAddress[i];
+    }
+
+    for (i = 0; i < IP_ADD_LENGTH; i++)
+    {
+        arp->destIp[i] = ipAddress[i];
+        arp->sourceIp[i] = 0;
+    }
+
+    // send packet
+    etherPutPacket((uint8_t *)ether, 42);
+}
+
+// Sends an ARP announcement to officially "claim" the IP address on the network
+void sendArpAnnouncement(uint8_t packet[])
+{
+    uint8_t i;
+
+    etherFrame* ether = (etherFrame*)packet;
+    arpFrame* arp = (arpFrame*)&ether->data;
+
+    // fill ethernet frame
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        ether->destAddress[i] = 0xFF;
+        ether->sourceAddress[i] = macAddress[i];
+    }
+
+    ether->frameType = htons(0x0806);
+
+    // fill arp frame
+    arp->hardwareType = htons(1);
+    arp->protocolType = htons(0x0800);
+    arp->hardwareSize = 6;
+    arp->protocolSize = 4;
+    arp->op = htons(1);
+
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        arp->destAddress[i] = 0;
+        arp->sourceAddress[i] = macAddress[i];
+    }
+
+    for (i = 0; i < IP_ADD_LENGTH; i++)
+    {
+        arp->destIp[i] = ipAddress[i];
+        arp->sourceIp[i] = ipAddress[i];
+    }
+
+    // send packet
+    etherPutPacket((uint8_t *)ether, 42);
+}
+
+// Sends an ARP request (Set-up as Gratuitous APR Request)
+void sendGratuitousArpResponse(uint8_t packet[])
+{
+    uint8_t i;
+
+    etherFrame* ether = (etherFrame*)packet;
+    arpFrame* arp = (arpFrame*)&ether->data;
+
+    // fill ethernet frame
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        ether->destAddress[i] = 0xFF;
+        ether->sourceAddress[i] = macAddress[i];
+    }
+
+    ether->frameType = htons(0x0806);
+
+    // fill arp frame
+    arp->hardwareType = htons(1);
+    arp->protocolType = htons(0x0800);
+    arp->hardwareSize = 6;
+    arp->protocolSize = 4;
+    arp->op = htons(2);
+
+    for (i = 0; i < HW_ADD_LENGTH; i++)
+    {
+        arp->destAddress[i] = 0xFF;
+        arp->sourceAddress[i] = macAddress[i];
+    }
+
+    for (i = 0; i < IP_ADD_LENGTH; i++)
+    {
+        arp->destIp[i] = ipAddress[i];
+        arp->sourceIp[i] = ipAddress[i];
+    }
+
     // send packet
     etherPutPacket((uint8_t *)ether, 42);
 }
@@ -608,22 +758,20 @@ bool etherIsUdp(uint8_t packet[])
     etherFrame* ether = (etherFrame*)packet;
     ipFrame* ip = (ipFrame*)&ether->data;
     udpFrame* udp = (udpFrame*)((uint8_t*)ip + ((ip->revSize & 0xF) * 4));
-    bool ok;
-    uint16_t tmp16;
-    ok = (ip->protocol == 0x11);
-    if (ok)
-    {
-        // 32-bit sum over pseudo-header
-        sum = 0;
-        etherSumWords(ip->sourceIp, 8);
-        tmp16 = ip->protocol;
-        sum += (tmp16 & 0xff) << 8;
-        etherSumWords(&udp->length, 2);
-        // add udp header and data
-        etherSumWords(udp, ntohs(udp->length));
-        ok = (getEtherChecksum() == 0);
-    }
-    return ok;
+
+    if(ip->protocol != 0x11)
+        return false;
+
+    // 32-bit sum over pseudo-header
+    sum = 0;
+    etherSumWords(ip->sourceIp, 8);
+    sum += (ip->protocol & 0xff) << 8;
+    etherSumWords(&udp->length, 2);
+
+    // add udp header and data
+    etherSumWords(udp, ntohs(udp->length));
+
+    return (getEtherChecksum() == 0);
 }
 
 // Gets pointer to UDP payload of frame
@@ -694,33 +842,33 @@ void etherSendUdpResponse(uint8_t packet[], uint8_t* udpData, uint8_t udpSize)
     etherPutPacket((uint8_t *)ether, 22 + ((ip->revSize & 0xF) * 4) + udpSize);
 }
 
-uint16_t etherGetId()
+uint16_t etherGetId(void)
 {
     return htons(sequenceId);
 }
 
-void etherIncId()
+void etherIncId(void)
 {
     sequenceId++;
 }
 
 // Enable or disable DHCP mode
-void etherEnableDhcpMode()
+void etherEnableDhcpMode(void)
 {
     dhcpEnabled = true;
 }
 
-void etherDisableDhcpMode()
+void etherDisableDhcpMode(void)
 {
     dhcpEnabled = false;
 }
 
-bool etherIsDhcpEnabled()
+bool etherIsDhcpEnabled(void)
 {
     return dhcpEnabled;
 }
 // Determines if the IP address is valid
-bool etherIsIpValid()
+bool etherIsIpValid(void)
 {
     return ipAddress[0] || ipAddress[1] || ipAddress[2] || ipAddress[3];
 }
@@ -776,7 +924,7 @@ void etherGetIpGatewayAddress(uint8_t ip[4])
         ip[i] = ipGwAddress[i];
 }
 
-// Sets MAC address
+// Sets device MAC address
 void etherSetMacAddress(uint8_t mac0, uint8_t mac1, uint8_t mac2, uint8_t mac3, uint8_t mac4, uint8_t mac5)
 {
     macAddress[0] = mac0;
@@ -785,6 +933,17 @@ void etherSetMacAddress(uint8_t mac0, uint8_t mac1, uint8_t mac2, uint8_t mac3, 
     macAddress[3] = mac3;
     macAddress[4] = mac4;
     macAddress[5] = mac5;
+}
+
+// Sets DHCP servers MAC address
+void etherSetServerMacAddress(uint8_t mac0, uint8_t mac1, uint8_t mac2, uint8_t mac3, uint8_t mac4, uint8_t mac5)
+{
+    serverMacAddress[0] = mac0;
+    serverMacAddress[1] = mac1;
+    serverMacAddress[2] = mac2;
+    serverMacAddress[3] = mac3;
+    serverMacAddress[4] = mac4;
+    serverMacAddress[5] = mac5;
 }
 
 // Gets MAC address
@@ -813,12 +972,12 @@ void getDnsAddress(uint8_t dns[4])
 }
 
 // Function to Ethernet Connection Information
-void displayConnectionInfo()
+void displayConnectionInfo(void)
 {
     char str[10];
-    uint8_t i;
-    uint8_t mac[6];
-    uint8_t ip[4];
+    uint8_t i, mac[6], ip[4];
+
+    sendUart0String("\r\nStarting eth0\r\n");
 
     // Retrieve Mac Address
     etherGetMacAddress(mac);
@@ -895,7 +1054,7 @@ void displayConnectionInfo()
 
 
 // Function to Ethernet Connection Information
-void displayIfconfigInfo()
+void displayIfconfigInfo(void)
 {
     char str[10];
     uint8_t i;
@@ -979,23 +1138,34 @@ void displayIfconfigInfo()
             sendUart0String(".");
     }
     sendUart0String("\r\n");
+
+    // Check if Ethernet Link is UP|DOWN
+    if (etherIsLinkUp())
+        sendUart0String("  Link is up\r\n");
+    else
+        sendUart0String("  Link is down\r\n");
 }
 
 // Init Ethernet Interface
-void initEthernetInterface()
+void initEthernetInterface(bool ok)
 {
     etherSetMacAddress(2, 3, 4, 5, 6, UNIQUE_ID);
     etherInit(ETHER_UNICAST | ETHER_BROADCAST | ETHER_HALFDUPLEX);
-    etherDisableDhcpMode();
-    etherSetIpAddress(192, 168, 1, UNIQUE_ID);
-    etherSetIpSubnetMask(255, 255, 255, 0);
-    etherSetIpGatewayAddress(192, 168, 1, 1);
-    setDnsAddress(0, 0, 0, 0);
+    if(ok)
+        etherEnableDhcpMode();
+    else
+    {
+        etherDisableDhcpMode();
+        etherSetIpAddress(192, 168, 1, UNIQUE_ID);
+        etherSetIpSubnetMask(255, 255, 255, 0);
+        etherSetIpGatewayAddress(192, 168, 1, 1);
+        setDnsAddress(0, 0, 0, 0);
+    }
     waitMicrosecond(100000);
 }
 
 // Function sets Network Addresses back to their static values
-void setStaticNetworkAddresses()
+void setStaticNetworkAddresses(void)
 {
     // etherSetMacAddress(2, 3, 4, 5, 6, UNIQUE_ID);
     etherDisableDhcpMode();
@@ -1003,4 +1173,17 @@ void setStaticNetworkAddresses()
     etherSetIpSubnetMask(255, 255, 255, 0);
     etherSetIpGatewayAddress(192, 168, 1, 1);
     setDnsAddress(0, 0, 0, 0);
+}
+
+// Use to set the various ether or IP address info
+void setAddressInfo(void* data, uint8_t add[], uint8_t sizeInBytes)
+{
+    uint8_t i;
+    uint8_t* pData = (uint8_t*)data;
+
+    for (i = 0; i < sizeInBytes; i++)
+    {
+        *pData = add[i];
+        pData++;
+    }
 }

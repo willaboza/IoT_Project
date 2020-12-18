@@ -7,7 +7,7 @@
 
 #include "pwm0.h"
 
-void initPwm0()
+void initPwm0(void)
 {
     // Enable clocks
     SYSCTL_RCGC0_R |= SYSCTL_RCGC0_PWM0;

@@ -19,8 +19,11 @@
 //-----------------------------------------------------------------------------
 // Device includes, defines, and assembler directives
 //-----------------------------------------------------------------------------
-
+#include <stdint.h>
+#include <stdbool.h>
+#include "tm4c123gh6pm.h"
 #include "spi.h"
+#include "gpio.h"
 
 // Pins
 #define SSI0TX  PORTA, 5
@@ -37,19 +40,23 @@
 //-----------------------------------------------------------------------------
 
 // Initialize SPI0
-void initSpi0(uint32_t pinMask)
+void initSpi0(uint32_t pinMask, uint32_t baudRate, uint32_t fcyc)
 {
     // Enable clocks
     SYSCTL_RCGCSSI_R |= SYSCTL_RCGCSSI_R0;
     _delay_cycles(3);
+
     enablePort(PORTA);
+    _delay_cycles(3);
 
     // Configure SSI1 pins for SPI configuration
     selectPinPushPullOutput(SSI0TX);
     setPinAuxFunction(SSI0TX, GPIO_PCTL_PA5_SSI0TX);
+
     selectPinPushPullOutput(SSI0CLK);
     setPinAuxFunction(SSI0CLK, GPIO_PCTL_PA2_SSI0CLK);
     enablePinPullup(SSI0CLK);
+
     if (pinMask & USE_SSI0_FSS)
     {
         selectPinPushPullOutput(SSI0FSS);
@@ -66,6 +73,9 @@ void initSpi0(uint32_t pinMask)
     SSI0_CR1_R = 0;                                    // select master mode
     SSI0_CC_R = 0;                                     // select system clock as the clock source
     SSI0_CR0_R = SSI_CR0_FRF_MOTO | SSI_CR0_DSS_8;     // set SR=0, 8-bit
+
+    setSpi0BaudRate(baudRate, fcyc);
+    setSpi0Mode(0, 0);
 }
 
 // Set baud rate as function of instruction cycle frequency
@@ -95,7 +105,7 @@ void writeSpi0Data(uint32_t data)
 }
 
 // Reads data from the rx buffer after a write
-uint32_t readSpi0Data()
+uint32_t readSpi0Data(void)
 {
     return SSI0_DR_R;
 }
