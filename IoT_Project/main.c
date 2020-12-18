@@ -64,8 +64,6 @@ int main(void)
                            .characterCount = 0,
     };
 
-    //uint8_t data[MAX_PACKET_SIZE] = {0};
-
     // Initialize Hardware
     initHw();
     initUart0(115200, 40e6);
@@ -121,6 +119,13 @@ int main(void)
             {
                 if(etherIsTcp(data)) // Handles TCP packets
                 {
+                    if(isMqttMessage(data))
+                    {
+                        processMqttMessage(&mqttInfo, data);
+
+                        ifttRulesTable(&mqttInfo, data);
+                    }
+
                     // Get next TCP state event
                     uint16_t nextTcpEvent = etherIsTcpMsgType(data);
 
@@ -155,15 +160,10 @@ int main(void)
         // If User Input detected, then process input
         if(kbhitUart0())
         {
-            // Get User Input
-            if(getsUart0(&userInput))
-            {
+            if(getsUart0(&userInput)) // Get User Input
                 shellCommands(&userInput, data);
-            }
             else
-            {
                 parseFields(&userInput); // Tokenize User Input
-            }
         }
     }
 }
